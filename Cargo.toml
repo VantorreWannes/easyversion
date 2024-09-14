@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bsdiff = "0.2.0"
+bzip2 = "0.4.4"
 iced = "0.12.1"
 
 [dev-dependencies]
