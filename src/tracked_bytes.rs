@@ -1,5 +1,8 @@
-use std::{io, path::{Path, PathBuf}};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use crate::patch::Patch;
 
@@ -21,7 +24,6 @@ impl TrackedBytes {
         Self::load_patches(&self.patch_paths[..=patch_index])
     }
 
-
     pub fn save(&mut self, target: &[u8]) -> io::Result<()> {
         let source = Self::load_patches(&self.patch_paths)?;
         self.save_patch(&source, target)
@@ -41,7 +43,6 @@ impl TrackedBytes {
         let target = patch.apply(source)?;
         Ok(target)
     }
-
 
     fn save_patch(&mut self, source: &[u8], target: &[u8]) -> io::Result<()> {
         let mut patch = Patch::from_buffers(&source, target)?;

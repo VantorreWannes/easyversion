@@ -1,6 +1,10 @@
-use std::{hash::{DefaultHasher, Hash, Hasher}, io::{self, Read}, path::{Path, PathBuf}};
-use bzip2::read::{BzEncoder, BzDecoder};
+use bzip2::read::{BzDecoder, BzEncoder};
 use bzip2::Compression;
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    io::{self, Read},
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Hash)]
 pub struct Patch {
@@ -14,7 +18,10 @@ impl Patch {
         Ok(Self { data: patch_buffer })
     }
 
-    pub fn from_files(source_path: impl AsRef<Path>, target_path: impl AsRef<Path>) -> io::Result<Self> {
+    pub fn from_files(
+        source_path: impl AsRef<Path>,
+        target_path: impl AsRef<Path>,
+    ) -> io::Result<Self> {
         let source = std::fs::read(source_path)?;
         let target = std::fs::read(target_path)?;
         Self::from_buffers(&source, &target)
@@ -41,7 +48,11 @@ impl Patch {
         Ok(target_buffer)
     }
 
-    pub fn apply_to_file(&self, source_path: impl AsRef<Path>, target_path: impl AsRef<Path>) -> io::Result<()> {
+    pub fn apply_to_file(
+        &self,
+        source_path: impl AsRef<Path>,
+        target_path: impl AsRef<Path>,
+    ) -> io::Result<()> {
         let source = std::fs::read(source_path)?;
         let target = self.apply(&source)?;
         std::fs::write(target_path, target)
@@ -84,10 +95,10 @@ impl From<Patch> for Vec<u8> {
 
 impl TryFrom<&Path> for Patch {
     type Error = io::Error;
-    
+
     fn try_from(path: &Path) -> Result<Self, std::io::Error> {
         Self::open(path)
-    }    
+    }
 }
 
 #[cfg(test)]
