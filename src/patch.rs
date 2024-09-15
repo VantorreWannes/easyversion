@@ -1,9 +1,9 @@
-use std::{hash::{DefaultHasher, Hash, Hasher}, io::{self, Read}, path::Path};
+use std::{hash::{DefaultHasher, Hash, Hasher}, io::{self, Read}, path::{Path, PathBuf}};
 use bzip2::read::{BzEncoder, BzDecoder};
 use bzip2::Compression;
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Hash)]
-struct Patch {
+pub struct Patch {
     data: Vec<u8>,
 }
 
@@ -25,8 +25,14 @@ impl Patch {
         Ok(Self { data })
     }
 
-    pub fn save(&self, path: impl AsRef<Path>) -> io::Result<()> {
-        std::fs::write(path, &self.data)
+    pub fn save(&self, dir: impl AsRef<Path>) -> io::Result<()> {
+        std::fs::write(self.path(dir), &self.data)
+    }
+
+    pub fn path(&self, dir: impl AsRef<Path>) -> PathBuf {
+        let mut patch_path = dir.as_ref().to_path_buf();
+        patch_path.push(format!("{}.ezpatch", self.id()));
+        patch_path
     }
 
     pub fn apply(&self, source: &[u8]) -> io::Result<Vec<u8>> {
@@ -109,8 +115,8 @@ mod patch_tests {
         let source = vec![1, 2, 3, 4, 5];
         let target = vec![1, 2, 4, 6];
         let patch = Patch::from_buffers(&source, &target)?;
-        let path = "test-data/patch/patch.ezpatch";
-        patch.save(path)
+        let dir = "test-data/patch/";
+        patch.save(dir)
     }
 
     #[test]

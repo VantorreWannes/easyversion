@@ -715,6 +715,7 @@ dependencies = [
  "bzip2",
  "divan",
  "iced",
+ "serde",
 ]
 
 [[package]]
