@@ -1,6 +1,5 @@
 pub mod patch;
-// pub mod tracked_bytes;
-// pub mod tracked_file;
+pub mod tracked;
 
 #[cfg(test)]
 mod tests {
