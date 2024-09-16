@@ -1,6 +1,14 @@
-use std::{fs, hash::{DefaultHasher, Hash, Hasher}, io::{self, Read}, path::{Path, PathBuf}};
+use std::{
+    fs,
+    hash::{DefaultHasher, Hash, Hasher},
+    io::{self, Read},
+    path::{Path, PathBuf},
+};
 
-use bzip2::{bufread::{BzDecoder, BzEncoder}, Compression};
+use bzip2::{
+    bufread::{BzDecoder, BzEncoder},
+    Compression,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Eq, Default, Clone, Serialize, Deserialize)]
@@ -9,8 +17,17 @@ pub struct Patch {
 }
 
 impl Patch {
+    pub fn open(patch_path: impl AsRef<Path>) -> Self {
+        Self {
+            path: patch_path.as_ref().to_path_buf(),
+        }
+    }
 
-    pub fn new(source_path:  impl AsRef<Path>, target_path:  impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> io::Result<Self> {
+    pub fn new(
+        source_path: impl AsRef<Path>,
+        target_path: impl AsRef<Path>,
+        patch_dir: impl AsRef<Path>,
+    ) -> io::Result<Self> {
         let source = std::fs::read(&source_path)?;
         let target = std::fs::read(&target_path)?;
         Self::from_buffers(&source, &target, patch_dir)
@@ -23,9 +40,7 @@ impl Patch {
         let patch_path = Self::patch_path(patch_dir, hash);
         patch_buffer = Self::compress(&patch_buffer)?;
         fs::write(&patch_path, patch_buffer)?;
-        Ok(Self {
-            path: patch_path,
-        })
+        Ok(Self { path: patch_path })
     }
 
     fn hash_buffer(bytes: &[u8]) -> u64 {
@@ -62,7 +77,11 @@ impl Patch {
         Ok(target_buffer)
     }
 
-    pub fn apply_to_file(&self, source_path: impl AsRef<Path>, target_path: impl AsRef<Path>) -> io::Result<()> {
+    pub fn apply_to_file(
+        &self,
+        source_path: impl AsRef<Path>,
+        target_path: impl AsRef<Path>,
+    ) -> io::Result<()> {
         let source = std::fs::read(&source_path)?;
         let target = self.apply_buffer(&source)?;
         std::fs::write(&target_path, target)?;
@@ -80,13 +99,23 @@ impl From<Patch> for PathBuf {
     }
 }
 
+impl From<&Path> for Patch {
+    fn from(path: &Path) -> Self {
+        Self::open(path)
+    }
+}
+
 #[cfg(test)]
 mod patch_tests {
     use super::*;
 
     #[test]
     fn test_patch() {
-        let patch = Patch::new("test-data/patch/A.txt", "test-data/patch/B.txt", "test-data/patch");
+        let patch = Patch::new(
+            "test-data/patch/A.txt",
+            "test-data/patch/B.txt",
+            "test-data/patch",
+        );
         assert!(patch.is_ok());
     }
 
