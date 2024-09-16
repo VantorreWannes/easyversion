@@ -1,103 +1,57 @@
-use bzip2::read::{BzDecoder, BzEncoder};
-use bzip2::Compression;
-use std::{
-    hash::{DefaultHasher, Hash, Hasher},
-    io::{self, Read},
-    path::{Path, PathBuf},
-};
+use std::{fs, hash::{DefaultHasher, Hash, Hasher}, io::{self, Read}, path::{Path, PathBuf}};
 
-#[derive(Debug, PartialEq, Eq, Default, Clone, Hash)]
+use bzip2::{bufread::{BzDecoder, BzEncoder}, Compression};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Eq, Default, Clone, Serialize, Deserialize)]
 pub struct Patch {
-    data: Vec<u8>,
+    path: PathBuf,
 }
 
 impl Patch {
-    pub fn from_buffers(source: &[u8], target: &[u8]) -> io::Result<Self> {
+
+    pub fn new(source_path:  impl AsRef<Path>, target_path:  impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> io::Result<Self> {
+        let source = std::fs::read(&source_path)?;
+        let target = std::fs::read(&target_path)?;
+        Self::from_buffers(&source, &target, patch_dir)
+    }
+
+    fn from_buffers(source: &[u8], target: &[u8], patch_dir: impl AsRef<Path>) -> io::Result<Self> {
         let mut patch_buffer = Vec::new();
         bsdiff::diff(source, target, &mut patch_buffer)?;
-        Ok(Self { data: patch_buffer })
+        let hash = Self::hash_buffer(&patch_buffer);
+        let patch_path = Self::patch_path(patch_dir, hash);
+        patch_buffer = Self::compress(&patch_buffer)?;
+        fs::write(&patch_path, patch_buffer)?;
+        Ok(Self {
+            path: patch_path,
+        })
     }
 
-    pub fn from_files(
-        source_path: impl AsRef<Path>,
-        target_path: impl AsRef<Path>,
-    ) -> io::Result<Self> {
-        let source = std::fs::read(source_path)?;
-        let target = std::fs::read(target_path)?;
-        Self::from_buffers(&source, &target)
+    fn hash_buffer(bytes: &[u8]) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        hasher.finish()
     }
 
-    pub fn open(path: impl AsRef<Path>) -> io::Result<Self> {
-        let data = std::fs::read(path)?;
-        Ok(Self { data })
+    fn patch_path(patch_dir: impl AsRef<Path>, hash: u64) -> PathBuf {
+        let mut path = patch_dir.as_ref().to_path_buf();
+        path.push(format!("{}.ezpatch", hash));
+        path
     }
 
-    pub fn save(&self, dir: impl AsRef<Path>) -> io::Result<()> {
-        std::fs::write(self.path(dir), &self.data)
-    }
-
-    pub fn path(&self, dir: impl AsRef<Path>) -> PathBuf {
-        let mut patch_path = dir.as_ref().to_path_buf();
-        patch_path.push(format!("{}.ezpatch", self.id()));
-        patch_path
-    }
-
-    pub fn apply(&self, source: &[u8]) -> io::Result<Vec<u8>> {
-        let mut target_buffer = Vec::new();
-        bsdiff::patch(source, &mut self.data.as_slice(), &mut target_buffer)?;
-        Ok(target_buffer)
-    }
-
-    pub fn apply_to_file(
-        &self,
-        source_path: impl AsRef<Path>,
-        target_path: impl AsRef<Path>,
-    ) -> io::Result<()> {
-        let source = std::fs::read(source_path)?;
-        let target = self.apply(&source)?;
-        std::fs::write(target_path, target)
-    }
-
-    pub fn compress(&mut self) -> io::Result<()> {
-        let mut encoder = BzEncoder::new(self.data.as_slice(), Compression::best());
+    fn compress(data: &[u8]) -> io::Result<Vec<u8>> {
+        let mut encoder = BzEncoder::new(data, Compression::best());
         let mut compressed_data = Vec::new();
         encoder.read_to_end(&mut compressed_data)?;
-        self.data = compressed_data;
-        Ok(())
+        Ok(compressed_data)
     }
 
-    pub fn decompress(&mut self) -> io::Result<()> {
-        let mut decoder = BzDecoder::new(self.data.as_slice());
+    fn decompress(data: &[u8]) -> io::Result<Vec<u8>> {
+        let mut decoder = BzDecoder::new(data);
         let mut decompressed_data = Vec::new();
         decoder.read_to_end(&mut decompressed_data)?;
-        self.data = decompressed_data;
-        Ok(())
-    }
-
-    pub fn id(&self) -> u64 {
-        let mut hash_state = DefaultHasher::new();
-        self.hash(&mut hash_state);
-        hash_state.finish()
-    }
-}
-
-impl From<Vec<u8>> for Patch {
-    fn from(data: Vec<u8>) -> Self {
-        Self { data }
-    }
-}
-
-impl From<Patch> for Vec<u8> {
-    fn from(patch: Patch) -> Self {
-        patch.data
-    }
-}
-
-impl TryFrom<&Path> for Patch {
-    type Error = io::Error;
-
-    fn try_from(path: &Path) -> Result<Self, std::io::Error> {
-        Self::open(path)
+        Ok(decompressed_data)
     }
 }
 
@@ -106,89 +60,8 @@ mod patch_tests {
     use super::*;
 
     #[test]
-    fn from_buffers() {
-        let source = vec![1, 2, 3, 4, 5];
-        let target = vec![1, 2, 4, 6];
-        let patch = Patch::from_buffers(&source, &target);
+    fn test_patch() {
+        let patch = Patch::new("test-data/patch/A.txt", "test-data/patch/B.txt", "test-data/patch");
         assert!(patch.is_ok());
-    }
-
-    #[test]
-    fn from_files() {
-        let source = "test-data/patch/A.txt";
-        let target = "test-data/patch/B.txt";
-        let patch = Patch::from_files(source, target);
-        assert!(patch.is_ok());
-    }
-
-    #[test]
-    fn save() -> io::Result<()> {
-        let source = vec![1, 2, 3, 4, 5];
-        let target = vec![1, 2, 4, 6];
-        let patch = Patch::from_buffers(&source, &target)?;
-        let dir = "test-data/patch/";
-        patch.save(dir)
-    }
-
-    #[test]
-    fn open() {
-        let path = "test-data/patch/patch.ezpatch";
-        let patch = Patch::open(path);
-        assert!(patch.is_ok());
-    }
-
-    #[test]
-    fn apply() -> io::Result<()> {
-        let source = vec![1, 2, 3, 4, 5];
-        let target = vec![1, 2, 4, 6];
-        let patch = Patch::from_buffers(&source, &target).unwrap();
-        let result = patch.apply(&source)?;
-        assert_eq!(target, result);
-        Ok(())
-    }
-
-    #[test]
-    fn apply_to_file() -> io::Result<()> {
-        let source = "test-data/patch/A.txt";
-        let target = "test-data/patch/B.txt";
-        let new_target = "test-data/patch/C.txt";
-        let patch = Patch::from_files(source, target)?;
-        patch.apply_to_file(source, new_target)
-    }
-
-    #[test]
-    fn id() -> io::Result<()> {
-        let source = vec![1, 2, 3, 4, 5];
-        let target = vec![1, 2, 4, 6];
-        let patch = Patch::from_buffers(&source, &target)?;
-        assert_eq!(patch.id(), 3130703799529806172);
-        Ok(())
-    }
-
-    #[test]
-    fn compress() -> io::Result<()> {
-        let source = vec![1, 2, 3, 4, 5];
-        let target = vec![1, 2, 4, 6];
-        let uncompressed_patch = Patch::from_buffers(&source, &target)?;
-        let mut compressed_patch = uncompressed_patch.clone();
-        compressed_patch.compress()?;
-        assert_ne!(uncompressed_patch, compressed_patch);
-        Ok(())
-    }
-
-    #[test]
-    fn decompress() -> io::Result<()> {
-        let source = vec![1, 2, 3, 4, 5];
-        let target = vec![1, 2, 4, 6];
-        let uncompressed_patch = Patch::from_buffers(&source, &target)?;
-
-        let mut compressed_patch = uncompressed_patch.clone();
-        compressed_patch.compress()?;
-
-        let mut decompressed_patch = compressed_patch.clone();
-        decompressed_patch.decompress()?;
-
-        assert_eq!(uncompressed_patch, decompressed_patch);
-        Ok(())
     }
 }
