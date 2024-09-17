@@ -1,0 +1,53 @@
+(
+    patch_dir: "test-data/project/patches",
+    tracked_item: Folder(
+        (
+            folder_path: "test-data/project/items",
+            patch_dir: "test-data/project/patches",
+            items: [
+                File(
+                    (
+                        file_path: "test-data/project/items/A.txt",
+                        patch_dir: "test-data/project/patches",
+                        patches: [
+                            (
+                                path: "test-data/project/patches/11021994230284475135.ezpatch",
+                            ),
+                            (
+                                path: "test-data/project/patches/3585183874576566023.ezpatch",
+                            ),
+                        ],
+                    ),
+                ),
+                Folder(
+                    (
+                        folder_path: "test-data/project/items/B",
+                        patch_dir: "test-data/project/patches",
+                        items: [
+                            File(
+                                (
+                                    file_path: "test-data/project/items/B/C.txt",
+                                    patch_dir: "test-data/project/patches",
+                                    patches: [
+                                        (
+                                            path: "test-data/project/patches/9252010078441894118.ezpatch",
+                                        ),
+                                        (
+                                            path: "test-data/project/patches/3585183874576566023.ezpatch",
+                                        ),
+                                    ],
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+            ],
+        ),
+    ),
+    version_infos: [
+        (
+            name: "Version Identifier: attractive-feast.",
+            description: None,
+        ),
+    ],
+)

@@ -62,20 +62,29 @@ mod tracked_folder_tests {
 
     #[test]
     fn test_new() -> io::Result<()> {
-        let tracked_folder = TrackedFolder::new("test-data/tracked/folder/items", "test-data/tracked/folder/patches")?;
+        let tracked_folder = TrackedFolder::new(
+            "test-data/tracked/folder/items",
+            "test-data/tracked/folder/patches",
+        )?;
         assert_eq!(tracked_folder.items.len(), 2);
         Ok(())
     }
 
     #[test]
     fn test_save() -> io::Result<()> {
-        let mut tracked_folder = TrackedFolder::new("test-data/tracked/folder/items", "test-data/tracked/folder/patches")?;
+        let mut tracked_folder = TrackedFolder::new(
+            "test-data/tracked/folder/items",
+            "test-data/tracked/folder/patches",
+        )?;
         tracked_folder.save()
     }
 
     #[test]
     fn test_load() -> io::Result<()> {
-        let mut tracked_folder = TrackedFolder::new("test-data/tracked/folder/items", "test-data/tracked/folder/patches")?;
+        let mut tracked_folder = TrackedFolder::new(
+            "test-data/tracked/folder/items",
+            "test-data/tracked/folder/patches",
+        )?;
         tracked_folder.save()?;
         tracked_folder.load(0)?;
         Ok(())
