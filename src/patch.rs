@@ -33,7 +33,11 @@ impl Patch {
         Self::from_buffers(&source, &target, patch_dir)
     }
 
-    fn from_buffers(source: &[u8], target: &[u8], patch_dir: impl AsRef<Path>) -> io::Result<Self> {
+    pub fn from_buffers(
+        source: &[u8],
+        target: &[u8],
+        patch_dir: impl AsRef<Path>,
+    ) -> io::Result<Self> {
         let mut patch_buffer = Vec::new();
         bsdiff::diff(source, target, &mut patch_buffer)?;
         let hash = Self::hash_buffer(&patch_buffer);
