@@ -93,5 +93,5 @@ mod tracked_file_tests {
         tracked_file.delete(1)?;
         assert_eq!(tracked_file.patches.len(), 1);
         Ok(())
-}
+    }
 }
