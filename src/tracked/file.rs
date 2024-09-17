@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::patch::Patch;
 
-#[derive(Debug, PartialEq, Eq, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TrackedFile {
     file_path: PathBuf,
     patch_dir: PathBuf,
