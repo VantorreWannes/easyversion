@@ -1,6 +1,9 @@
 use std::io::{self, Read};
 
-use bzip2::{bufread::{BzDecoder, BzEncoder}, Compression};
+use bzip2::{
+    bufread::{BzDecoder, BzEncoder},
+    Compression,
+};
 
 use crate::hash;
 
@@ -16,7 +19,9 @@ impl Patch {
         let mut encoder = BzEncoder::new(data.as_slice(), Compression::best());
         let mut compressed_data = vec![];
         encoder.read_to_end(&mut compressed_data)?;
-        Ok(Self { data: compressed_data })
+        Ok(Self {
+            data: compressed_data,
+        })
     }
 
     #[inline]
@@ -65,7 +70,7 @@ impl From<&[u8]> for Patch {
     fn from(value: &[u8]) -> Self {
         Self::from_data(value)
     }
-} 
+}
 
 #[cfg(test)]
 mod patch_tests {
@@ -73,8 +78,8 @@ mod patch_tests {
 
     #[test]
     fn new() {
-       assert!(Patch::new(&[2], &[1, 2, 3]).is_ok());
-    }    
+        assert!(Patch::new(&[2], &[1, 2, 3]).is_ok());
+    }
 
     #[test]
     fn apply() -> io::Result<()> {
