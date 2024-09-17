@@ -1,7 +1,3 @@
-pub mod easy_version;
-pub mod patch;
-pub mod project;
-pub mod tracked;
 
 #[cfg(test)]
 mod tests {
