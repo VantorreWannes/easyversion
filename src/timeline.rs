@@ -68,7 +68,9 @@ mod timeline_tests {
         let patch_dir = dirs::config_dir()
             .unwrap()
             .join("easyversion")
-            .join("tests").join("tracked_file").join(name);
+            .join("tests")
+            .join("timeline")
+            .join(name);
         std::fs::create_dir_all(&patch_dir)?;
         Ok(patch_dir)
     }
