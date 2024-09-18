@@ -42,7 +42,7 @@ impl Patch {
 
     #[inline]
     pub fn id(&self) -> u64 {
-        hash(&self)
+        hash(self)
     }
 
     #[inline]

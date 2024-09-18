@@ -41,12 +41,12 @@ impl Timeline {
     }
 
     pub fn get(&self, index: usize) -> Option<io::Result<Patch>> {
-        self.patch_paths.get(index).and_then(|path| {
+        self.patch_paths.get(index).map(|path| {
             let mut patch_file = match std::fs::File::open(path) {
                 Ok(patch_file) => patch_file,
-                Err(err) => return Some(Err(err)),
+                Err(err) => return Err(err),
             };
-            Some(Patch::read_from(&mut patch_file))
+            Patch::read_from(&mut patch_file)
         })
     }
 
