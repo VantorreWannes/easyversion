@@ -1,6 +1,7 @@
 use std::{
-    io::{self, Read, Write},
-    path::Path,
+    fs,
+    io::{self},
+    path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
@@ -8,21 +9,21 @@ use serde::{Deserialize, Serialize};
 use crate::{patch::Patch, timeline::Timeline};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct TrackedFile<T> {
-    file: T,
+pub struct TrackedFile {
+    path: PathBuf,
     timeline: Timeline,
 }
 
-impl<T: Write + Read> TrackedFile<T> {
-    pub fn new(file: T, patch_dir: impl AsRef<Path>) -> Self {
+impl TrackedFile {
+    pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> Self {
         Self {
-            file,
+            path: path.as_ref().to_path_buf(),
             timeline: Timeline::new(patch_dir),
         }
     }
 
-    pub fn file(&self) -> &T {
-        &self.file
+    pub fn file_path(&self) -> &Path {
+        &self.path
     }
 
     pub fn timeline(&self) -> &Timeline {
@@ -46,14 +47,13 @@ impl<T: Write + Read> TrackedFile<T> {
 
     pub fn load(&mut self, index: usize) -> io::Result<()> {
         let target = self.apply(index)?;
-        self.file.write_all(&target)?;
+        fs::write(&self.path, &target)?;
         Ok(())
     }
 
     pub fn save(&mut self) -> io::Result<()> {
         let source = self.apply_all()?;
-        let mut target = vec![];
-        self.file.read_to_end(&mut target)?;
+        let target = fs::read(&self.path)?;
         let patch = Patch::new(&source, &target)?;
         self.timeline.push(&patch)?;
         Ok(())
@@ -64,8 +64,6 @@ impl<T: Write + Read> TrackedFile<T> {
 mod tracked_file_tests {
 
     use std::path::PathBuf;
-
-    use io::Cursor;
 
     use super::*;
 
@@ -82,28 +80,29 @@ mod tracked_file_tests {
 
     #[test]
     fn new() -> io::Result<()> {
-        let file = Cursor::new(vec![]);
         let patch_dir = patch_dir("new")?;
-        let _ = TrackedFile::new(file, patch_dir);
+        let file_path = patch_dir.join("file.txt");
+        fs::write(&file_path, b"")?;
+        let _ = TrackedFile::new(file_path, patch_dir);
         Ok(())
     }
 
     #[test]
     fn save() -> io::Result<()> {
-        let mut data = vec![1, 2, 3];
-        let file = Cursor::new(&mut data);
         let patch_dir = patch_dir("save")?;
-        let mut tracked_file = TrackedFile::new(file, patch_dir);
+        let file_path = patch_dir.join("file.txt");
+        fs::write(&file_path, b"123")?;
+        let mut tracked_file = TrackedFile::new(file_path, patch_dir);
         tracked_file.save()?;
         Ok(())
     }
 
     #[test]
     fn load() -> io::Result<()> {
-        let mut data = vec![1, 2, 3];
-        let file = Cursor::new(&mut data);
         let patch_dir = patch_dir("load")?;
-        let mut tracked_file = TrackedFile::new(file, patch_dir);
+        let file_path = patch_dir.join("file.txt");
+        fs::write(&file_path, b"123")?;
+        let mut tracked_file = TrackedFile::new(file_path, patch_dir);
         tracked_file.save()?;
         tracked_file.load(0)?;
         Ok(())
