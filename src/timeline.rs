@@ -64,28 +64,26 @@ mod timeline_tests {
 
     use super::*;
 
-    fn config_dir() -> PathBuf {
-        let config_dir = dirs::config_dir()
+    fn patch_dir(name: &str) -> io::Result<PathBuf> {
+        let patch_dir = dirs::config_dir()
             .unwrap()
             .join("easyversion")
-            .join("patch_timeline");
-        if !config_dir.exists() {
-            std::fs::create_dir_all(&config_dir).unwrap();
-        }
-        config_dir
+            .join("tests").join("tracked_file").join(name);
+        std::fs::create_dir_all(&patch_dir)?;
+        Ok(patch_dir)
     }
-
     #[test]
-    fn new() {
-        let patch_dir = config_dir();
+    fn new() -> io::Result<()> {
+        let patch_dir = patch_dir("new")?;
         let timeline = Timeline::new(&patch_dir);
         assert!(timeline.is_empty());
         assert_eq!(timeline.len(), 0);
+        Ok(())
     }
 
     #[test]
     fn push() -> io::Result<()> {
-        let patch_dir = config_dir();
+        let patch_dir = patch_dir("push")?;
         let mut timeline = Timeline::new(&patch_dir);
         assert!(timeline.is_empty());
         let patch = Patch::from_data(&[2]);
@@ -96,7 +94,7 @@ mod timeline_tests {
 
     #[test]
     fn pop() -> io::Result<()> {
-        let patch_dir = config_dir();
+        let patch_dir = patch_dir("pop")?;
         let mut timeline = Timeline::new(&patch_dir);
         assert!(timeline.is_empty());
         let patch = Patch::from_data(&[2]);
@@ -112,7 +110,7 @@ mod timeline_tests {
 
     #[test]
     fn get() -> io::Result<()> {
-        let patch_dir = config_dir();
+        let patch_dir = patch_dir("get")?;
         let mut timeline = Timeline::new(&patch_dir);
         assert!(timeline.is_empty());
         let patch = Patch::from_data(&[2]);
