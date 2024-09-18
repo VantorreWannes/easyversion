@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 
 use bzip2::{
     bufread::{BzDecoder, BzEncoder},
@@ -22,6 +22,17 @@ impl Patch {
         Ok(Self {
             data: compressed_data,
         })
+    }
+
+    pub fn read_from<R: Read>(mut reader: R) -> io::Result<Self> {
+        let mut data = Vec::new();
+        reader.read_to_end(&mut data)?;
+        Ok(Self { data })
+    }
+
+    pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
+        writer.write_all(&self.data)?;
+        Ok(())
     }
 
     #[inline]
@@ -74,6 +85,8 @@ impl From<&[u8]> for Patch {
 
 #[cfg(test)]
 mod patch_tests {
+    use io::Cursor;
+
     use super::*;
 
     #[test]
@@ -95,5 +108,21 @@ mod patch_tests {
         let patch = Patch::new(&[2], &[1, 2, 3])?;
         assert_eq!(patch.id(), 132369031730439770);
         Ok(())
+    }
+
+    #[test]
+    fn write_to() -> io::Result<()> {
+        let patch = Patch::from_data(&[2]);
+        let mut file = Cursor::new(Vec::new());
+        patch.write_to(&mut file)?;
+        assert_eq!(file.into_inner(), [2]);
+        Ok(())
+    }
+
+    #[test]
+    fn read_from() {
+        let data = [2];
+        let patch = Patch::from_data(&data);
+        assert_eq!(patch.data(), &data);
     }
 }
