@@ -476,9 +476,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.20"
+version = "1.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45bcde016d64c21da4be18b655631e5ab6d3107607e71a73a9f53eb48aae23fb"
+checksum = "07b1695e2c7e8fc85310cde85aeaab7e3097f593c91d209d3f9df76c928100f0"
 dependencies = [
  "jobserver",
  "libc",
@@ -1046,6 +1046,7 @@ dependencies = [
  "names",
  "ron",
  "serde",
+ "walkdir",
 ]
 
 [[package]]
@@ -1552,9 +1553,9 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "iced"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44ccdb0d1a25ff7581e75991229857c353c87d79c199d375af37d264f6fbd06d"
+checksum = "88acfabc84ec077eaf9ede3457ffa3a104626d79022a9bf7f296093b1d60c73f"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -1566,9 +1567,9 @@ dependencies = [
 
 [[package]]
 name = "iced_core"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce264c157ad3968928d93f9b244ad8ad63465b5a5c31c86c13199b333629f16f"
+checksum = "afa341b914c93e1afc651c8b5c5b6c88aa68aa92e7d9923366b97a85a7f2ba46"
 dependencies = [
  "bitflags 2.6.0",
  "bytes",
@@ -1586,9 +1587,9 @@ dependencies = [
 
 [[package]]
 name = "iced_futures"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b47bd5c48706c57004c8a2d4cb127cb4535600843edb13aed10b09c7cd55eda4"
+checksum = "9b9b08fd632f5131344702869eea35fdebef9e548ab504942ac6b44fb42c90e2"
 dependencies = [
  "futures",
  "iced_core",
@@ -1695,9 +1696,9 @@ dependencies = [
 
 [[package]]
 name = "iced_widget"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e88dd57d414cc44427c523534b80e52a42b6828f0e27ad7b8478f839865ee3c"
+checksum = "23eef161bcd216f3472916570919dc3542647285da9cc81085b8d5cb434dc870"
 dependencies = [
  "iced_renderer",
  "iced_runtime",
@@ -3412,9 +3413,9 @@ checksum = "0336d538f7abc86d282a4189614dfaa90810dfc2c6f6427eaf88e16311dd225d"
 
 [[package]]
 name = "unicode-xid"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "229730647fbc343e3a80e463c1db7f78f3855d3f3739bee0dda773c9a037c90a"
+checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "version_check"

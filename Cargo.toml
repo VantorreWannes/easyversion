@@ -13,6 +13,7 @@ iced = "0.13.0"
 names = "0.14.0"
 ron = "0.8.1"
 serde = {version = "1.0.210", features = ["derive"] }
+walkdir = "2.5.0"
 
 [dev-dependencies]
 divan = "0.1.14"
