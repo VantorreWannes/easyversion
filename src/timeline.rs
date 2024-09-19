@@ -57,6 +57,14 @@ impl Timeline {
     pub fn is_empty(&self) -> bool {
         self.patch_paths.is_empty()
     }
+
+    pub fn patch_paths(&self) -> &[PathBuf] {
+        &self.patch_paths
+    }
+
+    pub fn patch_dir(&self) -> &Path {
+        &self.patch_dir
+    }
 }
 
 #[cfg(test)]
