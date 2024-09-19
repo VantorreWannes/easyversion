@@ -1,6 +1,5 @@
 use std::{
-    io::{self},
-    path::{Path, PathBuf},
+    fs, io::{self}, path::{Path, PathBuf}
 };
 
 use serde::{Deserialize, Serialize};
@@ -35,7 +34,14 @@ impl Timeline {
                 Ok(patch_file) => patch_file,
                 Err(err) => return Some(Err(err)),
             };
-            return Some(Patch::read_from(&mut patch_file));
+            let patch = Patch::read_from(&mut patch_file);
+            if !self.patch_paths.contains(&patch_path) {
+                match fs::remove_file(&patch_path) {
+                    Ok(()) => (),
+                    Err(err) => return Some(Err(err)),
+                };
+            }
+            return Some(patch);
         }
         None
     }
