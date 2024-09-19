@@ -3,6 +3,7 @@ use std::hash::{DefaultHasher, Hasher};
 
 pub mod patch;
 pub mod timeline;
+pub mod tracked;
 pub mod tracked_file;
 pub mod tracked_folder;
 

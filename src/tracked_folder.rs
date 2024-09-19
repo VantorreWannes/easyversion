@@ -1,5 +1,6 @@
 use std::{
-    io, path::{Path, PathBuf}
+    io,
+    path::{Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
@@ -16,8 +17,7 @@ pub struct TrackedFolder {
 impl TrackedFolder {
     pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> io::Result<Self> {
         let mut files = vec![];
-        for entry in WalkDir::new(&path)
-        {
+        for entry in WalkDir::new(&path) {
             let entry = entry?;
             if entry.file_type().is_dir() {
                 continue;

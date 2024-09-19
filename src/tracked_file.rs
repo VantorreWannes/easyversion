@@ -66,7 +66,7 @@ impl TrackedFile {
 
     pub fn delete(&mut self, index: usize) -> io::Result<()> {
         self.load(index)?;
-        for _ in index+1..self.timeline.len() {
+        for _ in index + 1..self.timeline.len() {
             self.timeline.pop().transpose()?;
         }
         Ok(())
