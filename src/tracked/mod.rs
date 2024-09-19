@@ -37,3 +37,73 @@ pub trait Version {
         Ok(other)
     }
 }
+
+#[cfg(test)]
+mod version_test_tools {
+    use std::{fs, io, path::PathBuf};
+
+    pub fn dir_path(dirs: &[&str]) -> io::Result<PathBuf> {
+        let mut patch_dir = dirs::config_dir()
+            .unwrap()
+            .join("easyversion")
+            .join("tests");
+        for dir in dirs {
+            patch_dir = patch_dir.join(dir);
+        }
+        fs::create_dir_all(&patch_dir)?;
+        Ok(patch_dir)
+    }
+
+    pub fn patch_dir_path(dirs: &[&str]) -> io::Result<PathBuf> {
+        let test_dir = dir_path(dirs)?;
+        let patch_dir = test_dir.join("patches");
+        fs::create_dir_all(&patch_dir)?;
+        Ok(patch_dir)
+    }
+
+    pub fn tracked_file_path(dirs: &[&str]) -> io::Result<PathBuf> {
+        let test_dir = dir_path(dirs)?;
+        let file_path = test_dir.join("file.txt");
+        fs::write(&file_path, b"123")?;
+        Ok(file_path)
+    }
+
+    pub fn tracked_folder_path(dirs: &[&str]) -> io::Result<PathBuf> {
+        let test_dir = dir_path(dirs)?;
+        let tracked_dir = test_dir.join("tracked_folder");
+        fs::create_dir_all(&tracked_dir)?;
+        let tracked_dir_subfolder = tracked_dir.join("subfolder");
+        fs::create_dir_all(&tracked_dir_subfolder)?;
+        fs::write(tracked_dir.join("file.txt"), b"123")?;
+        fs::write(tracked_dir_subfolder.join("file.txt"), b"123")?;
+        Ok(tracked_dir)
+    }
+
+    #[test]
+    fn test_dir_path() -> io::Result<()> {
+        let test_dir = dir_path(&["test_dir_path"])?;
+        assert!(test_dir.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn test_patch_dir_path() -> io::Result<()> {
+        let test_dir = patch_dir_path(&["test_patch_dir_path"])?;
+        assert!(test_dir.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn test_tracked_file_path() -> io::Result<()> {
+        let test_dir = tracked_file_path(&["test_tracked_file_path"])?;
+        assert!(test_dir.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn test_tracked_folder_path() -> io::Result<()> {
+        let test_dir = tracked_folder_path(&["test_tracked_folder_path"])?;
+        assert!(test_dir.exists());
+        Ok(())
+    }
+}
