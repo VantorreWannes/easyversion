@@ -1,4 +1,5 @@
 use std::io;
+pub mod file;
 
 pub trait Version {
     fn save(&mut self) -> io::Result<()>;
@@ -21,7 +22,7 @@ pub trait Version {
         self.delete(self.len().saturating_sub(1))
     }
 
-    fn reset(&mut self) -> io::Result<()> {
+    fn restore(&mut self) -> io::Result<()> {
         self.load_last()
     }
 
@@ -29,7 +30,10 @@ pub trait Version {
         self.delete(0)
     }
 
-    fn split(&mut self, index: usize) -> io::Result<Self> where Self: Sized + Clone {
+    fn split(&mut self, index: usize) -> io::Result<Self>
+    where
+        Self: Sized + Clone,
+    {
         self.load(index)?;
         let mut other = self.clone();
         other.clear()?;
@@ -81,28 +85,28 @@ mod version_test_tools {
 
     #[test]
     fn test_dir_path() -> io::Result<()> {
-        let test_dir = dir_path(&["test_dir_path"])?;
+        let test_dir = dir_path(&["version_test_tools", "dir_path"])?;
         assert!(test_dir.exists());
         Ok(())
     }
 
     #[test]
     fn test_patch_dir_path() -> io::Result<()> {
-        let test_dir = patch_dir_path(&["test_patch_dir_path"])?;
+        let test_dir = patch_dir_path(&["version_test_tools", "patch_dir_path"])?;
         assert!(test_dir.exists());
         Ok(())
     }
 
     #[test]
     fn test_tracked_file_path() -> io::Result<()> {
-        let test_dir = tracked_file_path(&["test_tracked_file_path"])?;
+        let test_dir = tracked_file_path(&["version_test_tools", "tracked_file_path"])?;
         assert!(test_dir.exists());
         Ok(())
     }
 
     #[test]
     fn test_tracked_folder_path() -> io::Result<()> {
-        let test_dir = tracked_folder_path(&["test_tracked_folder_path"])?;
+        let test_dir = tracked_folder_path(&["version_test_tools", "tracked_folder_path"])?;
         assert!(test_dir.exists());
         Ok(())
     }
