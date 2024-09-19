@@ -51,12 +51,33 @@ impl TrackedFile {
         Ok(())
     }
 
+    pub fn load_last(&mut self) -> io::Result<()> {
+        let index = self.timeline.len().saturating_sub(1);
+        self.load(index)
+    }
+
     pub fn save(&mut self) -> io::Result<()> {
         let source = self.apply_all()?;
         let target = fs::read(&self.path)?;
         let patch = Patch::new(&source, &target)?;
         self.timeline.push(&patch)?;
         Ok(())
+    }
+
+    pub fn delete(&mut self, index: usize) -> io::Result<()> {
+        self.load(index)?;
+        for _ in index+1..self.timeline.len() {
+            self.timeline.pop().transpose()?;
+        }
+        Ok(())
+    }
+
+    pub fn len(&self) -> usize {
+        self.timeline.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.timeline.is_empty()
     }
 }
 
@@ -105,6 +126,17 @@ mod tracked_file_tests {
         let mut tracked_file = TrackedFile::new(file_path, patch_dir);
         tracked_file.save()?;
         tracked_file.load(0)?;
+        Ok(())
+    }
+
+    #[test]
+    fn delete() -> io::Result<()> {
+        let patch_dir = patch_dir("delete")?;
+        let file_path = patch_dir.join("file.txt");
+        fs::write(&file_path, b"123")?;
+        let mut tracked_file = TrackedFile::new(file_path, patch_dir);
+        tracked_file.save()?;
+        tracked_file.delete(0)?;
         Ok(())
     }
 }
