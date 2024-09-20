@@ -16,11 +16,11 @@ pub struct TrackedFile {
 }
 
 impl TrackedFile {
-    pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> Self {
-        Self {
+    pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> io::Result<Self> {
+        Ok(Self {
             path: path.as_ref().to_path_buf(),
-            timeline: Timeline::new(patch_dir),
-        }
+            timeline: Timeline::new(patch_dir)?,
+        })
     }
 
     pub fn path(&self) -> &Path {
@@ -88,7 +88,8 @@ mod tracked_file_tests {
         let dirs = &["tracked_file", "new"];
         let patch_dir = patch_dir_path(dirs)?;
         let tracked_file_path = tracked_file_path(dirs)?;
-        let _ = TrackedFile::new(tracked_file_path, patch_dir);
+        let tracked_file = TrackedFile::new(tracked_file_path, patch_dir);
+        assert!(tracked_file.is_ok());
         Ok(())
     }
 
@@ -97,7 +98,7 @@ mod tracked_file_tests {
         let dirs = &["tracked_file", "save"];
         let patch_dir = patch_dir_path(dirs)?;
         let tracked_file_path = tracked_file_path(dirs)?;
-        let mut tracked_file = TrackedFile::new(tracked_file_path, patch_dir);
+        let mut tracked_file = TrackedFile::new(tracked_file_path, patch_dir)?;
         tracked_file.save()
     }
 
@@ -106,7 +107,7 @@ mod tracked_file_tests {
         let dirs = &["tracked_file", "load"];
         let patch_dir = patch_dir_path(dirs)?;
         let tracked_file_path = tracked_file_path(dirs)?;
-        let mut tracked_file = TrackedFile::new(tracked_file_path, patch_dir);
+        let mut tracked_file = TrackedFile::new(tracked_file_path, patch_dir)?;
         tracked_file.save()?;
         tracked_file.load(0)
     }
@@ -116,7 +117,7 @@ mod tracked_file_tests {
         let dirs = &["tracked_file", "delete"];
         let patch_dir = patch_dir_path(dirs)?;
         let tracked_file_path = tracked_file_path(dirs)?;
-        let mut tracked_file = TrackedFile::new(tracked_file_path, patch_dir);
+        let mut tracked_file = TrackedFile::new(tracked_file_path, patch_dir)?;
         tracked_file.save()?;
         tracked_file.delete(0)
     }

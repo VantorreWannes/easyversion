@@ -15,11 +15,14 @@ pub struct Timeline {
 }
 
 impl Timeline {
-    pub fn new(patch_dir: impl AsRef<Path>) -> Self {
-        Self {
-            patch_dir: patch_dir.as_ref().to_path_buf(),
+    pub fn new(patch_dir: impl AsRef<Path>) -> io::Result<Self> {
+        let uuid = uuid::Uuid::new_v4().as_simple().to_string();
+        let patch_dir = patch_dir.as_ref().join(uuid);
+        std::fs::create_dir_all(&patch_dir)?;
+        Ok(Self {
+            patch_dir: patch_dir,
             patch_paths: vec![],
-        }
+        })
     }
 
     pub fn push(&mut self, patch: &Patch) -> io::Result<()> {
@@ -38,6 +41,7 @@ impl Timeline {
             };
             let patch = Patch::read_from(&mut patch_file);
             if !self.patch_paths.contains(&patch_path) {
+                dbg!(&patch_path);
                 match fs::remove_file(&patch_path) {
                     Ok(()) => (),
                     Err(err) => return Some(Err(err)),
@@ -93,7 +97,7 @@ mod timeline_tests {
     #[test]
     fn new() -> io::Result<()> {
         let patch_dir = patch_dir("new")?;
-        let timeline = Timeline::new(&patch_dir);
+        let timeline = Timeline::new(&patch_dir)?;
         assert!(timeline.is_empty());
         assert_eq!(timeline.len(), 0);
         Ok(())
@@ -102,7 +106,7 @@ mod timeline_tests {
     #[test]
     fn push() -> io::Result<()> {
         let patch_dir = patch_dir("push")?;
-        let mut timeline = Timeline::new(&patch_dir);
+        let mut timeline = Timeline::new(&patch_dir)?;
         assert!(timeline.is_empty());
         let patch = Patch::from_data(&[2]);
         timeline.push(&patch)?;
@@ -113,7 +117,7 @@ mod timeline_tests {
     #[test]
     fn pop() -> io::Result<()> {
         let patch_dir = patch_dir("pop")?;
-        let mut timeline = Timeline::new(&patch_dir);
+        let mut timeline = Timeline::new(&patch_dir)?;
         assert!(timeline.is_empty());
         let patch = Patch::from_data(&[2]);
         timeline.push(&patch)?;
@@ -129,7 +133,7 @@ mod timeline_tests {
     #[test]
     fn get() -> io::Result<()> {
         let patch_dir = patch_dir("get")?;
-        let mut timeline = Timeline::new(&patch_dir);
+        let mut timeline = Timeline::new(&patch_dir)?;
         assert!(timeline.is_empty());
         let patch = Patch::from_data(&[2]);
         timeline.push(&patch)?;
