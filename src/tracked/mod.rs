@@ -1,6 +1,72 @@
-use std::io;
+use std::{io, path::Path};
+
+use file::TrackedFile;
+use folder::TrackedFolder;
+use serde::{Deserialize, Serialize};
 pub mod file;
 pub mod folder;
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum TrackedItem {
+    File(file::TrackedFile),
+    Folder(folder::TrackedFolder),
+}
+
+impl TrackedItem {
+    pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> io::Result<Self> {
+        if path.as_ref().is_file() {
+            Ok(Self::File(file::TrackedFile::new(path, patch_dir)?))
+        } else if path.as_ref().is_dir() {
+            Ok(Self::Folder(folder::TrackedFolder::new(path, patch_dir)?))
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Not a file or folder"))
+        }
+    }
+
+    pub fn file(&self) -> Option<&TrackedFile> {
+        match self {
+            TrackedItem::File(file) => Some(file),
+            _ => None,
+        }
+    }
+
+    pub fn folder(&self) -> Option<&TrackedFolder> {
+        match self {
+            TrackedItem::Folder(folder) => Some(folder),
+            _ => None,
+        }
+    }
+}
+
+impl Version for TrackedItem {
+    fn save(&mut self) -> io::Result<()> {
+        match self {
+            TrackedItem::File(file) => file.save(),
+            TrackedItem::Folder(folder) => folder.save(),
+        }
+    }
+
+    fn load(&mut self, index: usize) -> io::Result<()> {
+        match self {
+            TrackedItem::File(file) => file.load(index),
+            TrackedItem::Folder(folder) => folder.load(index),
+        }
+    }
+
+    fn delete(&mut self, index: usize) -> io::Result<()> {
+        match self {
+            TrackedItem::File(file) => file.delete(index),
+            TrackedItem::Folder(folder) => folder.delete(index),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            TrackedItem::File(file) => file.len(),
+            TrackedItem::Folder(folder) => folder.len(),
+        }
+    }
+}
 
 pub trait Version {
     fn save(&mut self) -> io::Result<()>;
