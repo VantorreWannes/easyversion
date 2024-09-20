@@ -1,5 +1,6 @@
 use std::io;
 pub mod file;
+pub mod folder;
 
 pub trait Version {
     fn save(&mut self) -> io::Result<()>;
