@@ -3,7 +3,7 @@ use std::hash::{DefaultHasher, Hasher};
 
 pub mod patch;
 pub mod timeline;
-// pub mod tracked;
+pub mod tracked;
 
 pub fn hash<T>(value: T) -> u64
 where
