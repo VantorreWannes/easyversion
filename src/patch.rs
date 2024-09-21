@@ -1,4 +1,8 @@
-use std::io::{self, Read, Write};
+use std::{
+    error::Error,
+    fmt::Display,
+    io::{self, Read, Write},
+};
 
 use bzip2::{
     bufread::{BzDecoder, BzEncoder},
@@ -7,13 +11,49 @@ use bzip2::{
 
 use crate::hash;
 
+#[derive(Debug)]
+pub enum PatchError {
+    IoError(io::Error),
+    Bzip2Error(bzip2::Error),
+}
+
+impl Display for PatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PatchError::IoError(err) => err.fmt(f),
+            PatchError::Bzip2Error(err) => err.fmt(f),
+        }
+    }
+}
+
+impl Error for PatchError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            PatchError::IoError(err) => Some(err),
+            PatchError::Bzip2Error(err) => Some(err),
+        }
+    }
+}
+
+impl From<io::Error> for PatchError {
+    fn from(error: io::Error) -> Self {
+        Self::IoError(error)
+    }
+}
+
+impl From<bzip2::Error> for PatchError {
+    fn from(error: bzip2::Error) -> Self {
+        Self::Bzip2Error(error)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Default, Clone, Hash)]
 pub struct Patch {
     data: Vec<u8>,
 }
 
 impl Patch {
-    pub fn new(source: &[u8], target: &[u8]) -> io::Result<Self> {
+    pub fn new(source: &[u8], target: &[u8]) -> Result<Self, PatchError> {
         let mut data = Vec::new();
         bsdiff::diff(source, target, &mut data)?;
         let mut encoder = BzEncoder::new(data.as_slice(), Compression::best());
@@ -24,13 +64,13 @@ impl Patch {
         })
     }
 
-    pub fn read_from<R: Read>(mut reader: R) -> io::Result<Self> {
+    pub fn read_from<R: Read>(mut reader: R) -> Result<Self, PatchError> {
         let mut data = Vec::new();
         reader.read_to_end(&mut data)?;
         Ok(Self { data })
     }
 
-    pub fn write_to<W: Write>(&self, mut writer: W) -> io::Result<()> {
+    pub fn write_to<W: Write>(&self, mut writer: W) -> Result<(), PatchError> {
         writer.write_all(&self.data)?;
         Ok(())
     }
@@ -55,7 +95,7 @@ impl Patch {
         self.data.is_empty()
     }
 
-    pub fn apply(&self, source: &[u8]) -> io::Result<Vec<u8>> {
+    pub fn apply(&self, source: &[u8]) -> Result<Vec<u8>, PatchError> {
         let mut uncompressed_data = vec![];
         let mut decoder = BzDecoder::new(self.data.as_slice());
         decoder.read_to_end(&mut uncompressed_data)?;
@@ -83,6 +123,12 @@ impl From<&[u8]> for Patch {
     }
 }
 
+impl From<Vec<u8>> for Patch {
+    fn from(value: Vec<u8>) -> Self {
+        Self::from_data(&value)
+    }
+}
+
 #[cfg(test)]
 mod patch_tests {
     use io::Cursor;
@@ -95,7 +141,7 @@ mod patch_tests {
     }
 
     #[test]
-    fn apply() -> io::Result<()> {
+    fn apply() -> Result<(), PatchError> {
         let source = [2];
         let target = [1, 2, 3];
         let patch = Patch::new(&source, &target)?;
@@ -104,14 +150,14 @@ mod patch_tests {
     }
 
     #[test]
-    fn id() -> io::Result<()> {
+    fn id() -> Result<(), PatchError> {
         let patch = Patch::new(&[2], &[1, 2, 3])?;
         assert_eq!(patch.id(), 132369031730439770);
         Ok(())
     }
 
     #[test]
-    fn write_to() -> io::Result<()> {
+    fn write_to() -> Result<(), PatchError> {
         let patch = Patch::from_data(&[2]);
         let mut file = Cursor::new(Vec::new());
         patch.write_to(&mut file)?;
