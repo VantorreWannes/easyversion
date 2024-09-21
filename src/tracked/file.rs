@@ -64,7 +64,9 @@ impl Version for TrackedFile {
     }
 
     fn delete(&mut self, index: usize) -> Result<(), VersionError> {
-        self.load(index)?;
+        if index > self.timeline.len() {
+            return Err(VersionError::IndexOutOfRange(index));
+        }
         for _ in index..self.timeline.len() {
             self.timeline.pop()?;
         }
