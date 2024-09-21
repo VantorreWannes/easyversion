@@ -4,8 +4,8 @@ use std::{error::Error, fmt::Display, io, path::Path};
 // use folder::TrackedFolder;
 use serde::{Deserialize, Serialize};
 
-use crate::timeline::TimelineError;
-// pub mod file;
+use crate::{patch::PatchError, timeline::TimelineError};
+pub mod file;
 // pub mod folder;
 
 // #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -100,6 +100,18 @@ impl From<TimelineError> for VersionError {
     }
 }
 
+impl From<PatchError> for VersionError {
+    fn from(err: PatchError) -> Self {
+        VersionError::TimelineError(err.into())
+    }
+}
+
+impl From<io::Error> for VersionError {
+    fn from(err: io::Error) -> Self {
+        VersionError::TimelineError(err.into())
+    }
+}
+
 pub trait Version {
     fn save(&mut self) -> Result<(), VersionError>;
 
@@ -133,7 +145,7 @@ pub trait Version {
         self.delete(0)
     }
 
-    fn split(&mut self, index: usize) ->  Result<Self, VersionError>
+    fn split(&mut self, index: usize) -> Result<Self, VersionError>
     where
         Self: Sized + Clone,
     {
