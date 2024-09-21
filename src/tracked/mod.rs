@@ -1,80 +1,81 @@
-use std::{error::Error, fmt::Display, io, path::Path};
+use std::{error::Error, fmt::Display, io, path::{Path, PathBuf}};
 
-// use file::TrackedFile;
-// use folder::TrackedFolder;
+use file::TrackedFile;
+use folder::TrackedFolder;
 use serde::{Deserialize, Serialize};
 
 use crate::{patch::PatchError, timeline::TimelineError};
 pub mod file;
 pub mod folder;
 
-// #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-// pub enum TrackedItem {
-//     File(file::TrackedFile),
-//     Folder(folder::TrackedFolder),
-// }
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub enum TrackedItem {
+    File(file::TrackedFile),
+    Folder(folder::TrackedFolder),
+}
 
-// impl TrackedItem {
-//     pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> io::Result<Self> {
-//         if path.as_ref().is_file() {
-//             Ok(Self::File(file::TrackedFile::new(path, patch_dir)?))
-//         } else if path.as_ref().is_dir() {
-//             Ok(Self::Folder(folder::TrackedFolder::new(path, patch_dir)?))
-//         } else {
-//             Err(io::Error::new(io::ErrorKind::Other, "Not a file or folder"))
-//         }
-//     }
+impl TrackedItem {
+    pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> Result<Self, VersionError> {
+        if path.as_ref().is_file() {
+            Ok(Self::File(file::TrackedFile::new(path, patch_dir)?))
+        } else if path.as_ref().is_dir() {
+            Ok(Self::Folder(folder::TrackedFolder::new(path, patch_dir)?))
+        } else {
+            Err(VersionError::InvalidPath(path.as_ref().to_path_buf()))
+        }
+    }
 
-//     pub fn file(&self) -> Option<&TrackedFile> {
-//         match self {
-//             TrackedItem::File(file) => Some(file),
-//             _ => None,
-//         }
-//     }
+    pub fn file(&self) -> Option<&TrackedFile> {
+        match self {
+            TrackedItem::File(file) => Some(file),
+            _ => None,
+        }
+    }
 
-//     pub fn folder(&self) -> Option<&TrackedFolder> {
-//         match self {
-//             TrackedItem::Folder(folder) => Some(folder),
-//             _ => None,
-//         }
-//     }
-// }
+    pub fn folder(&self) -> Option<&TrackedFolder> {
+        match self {
+            TrackedItem::Folder(folder) => Some(folder),
+            _ => None,
+        }
+    }
+}
 
-// impl Version for TrackedItem {
-//     fn save(&mut self) -> io::Result<()> {
-//         match self {
-//             TrackedItem::File(file) => file.save(),
-//             TrackedItem::Folder(folder) => folder.save(),
-//         }
-//     }
+impl Version for TrackedItem {
+    fn save(&mut self) -> Result<(), VersionError> {
+        match self {
+            TrackedItem::File(file) => file.save(),
+            TrackedItem::Folder(folder) => folder.save(),
+        }
+    }
 
-//     fn load(&mut self, index: usize) -> io::Result<()> {
-//         match self {
-//             TrackedItem::File(file) => file.load(index),
-//             TrackedItem::Folder(folder) => folder.load(index),
-//         }
-//     }
+    fn load(&mut self, index: usize) -> Result<(), VersionError> {
+        match self {
+            TrackedItem::File(file) => file.load(index),
+            TrackedItem::Folder(folder) => folder.load(index),
+        }
+    }
 
-//     fn delete(&mut self, index: usize) -> io::Result<()> {
-//         match self {
-//             TrackedItem::File(file) => file.delete(index),
-//             TrackedItem::Folder(folder) => folder.delete(index),
-//         }
-//     }
+    fn delete(&mut self, index: usize) -> Result<(), VersionError> {
+        match self {
+            TrackedItem::File(file) => file.delete(index),
+            TrackedItem::Folder(folder) => folder.delete(index),
+        }
+    }
 
-//     fn len(&self) -> usize {
-//         match self {
-//             TrackedItem::File(file) => file.len(),
-//             TrackedItem::Folder(folder) => folder.len(),
-//         }
-//     }
-// }
+    fn len(&self) -> usize {
+        match self {
+            TrackedItem::File(file) => file.len(),
+            TrackedItem::Folder(folder) => folder.len(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum VersionError {
     TimelineError(TimelineError),
     IndexOutOfRange(usize),
     WalkDirError(walkdir::Error),
+    InvalidPath(PathBuf),
 }
 
 impl Display for VersionError {
@@ -83,6 +84,7 @@ impl Display for VersionError {
             VersionError::TimelineError(err) => err.fmt(f),
             VersionError::IndexOutOfRange(idx) => write!(f, "Index out of range: {}", idx),
             VersionError::WalkDirError(err) => err.fmt(f),
+            VersionError::InvalidPath(path) => write!(f, "Invalid path: {}", path.display()),
         }
     }
 }
