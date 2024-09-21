@@ -122,8 +122,8 @@ mod timeline_tests {
 
     use super::*;
 
-    pub fn patch_dir(name: &str) -> PathBuf {
-        dir_path(&["timeline", name])
+    fn patch_dir(name: &str) -> PathBuf {
+        dir_path(&["timeline", "patches", name])
     }
 
     #[test]
