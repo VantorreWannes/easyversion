@@ -1,4 +1,9 @@
-use std::{error::Error, fmt::Display, io, path::{Path, PathBuf}};
+use std::{
+    error::Error,
+    fmt::Display,
+    io,
+    path::{Path, PathBuf},
+};
 
 use file::TrackedFile;
 use folder::TrackedFolder;
