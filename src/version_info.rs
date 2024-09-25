@@ -122,7 +122,7 @@ impl Display for VersionIdentifier {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub struct VersionInfo {
     index: usize,
     label: Option<Label>,
@@ -349,6 +349,10 @@ impl VersionInfoManager {
     pub fn is_empty(&self) -> bool {
         self.versions.is_empty()
     }
+
+    pub fn split(&self) -> VersionInfoManager {
+        VersionInfoManager::from_versions(vec![VersionInfo::default()])
+    }
 }
 
 #[cfg(test)]
@@ -451,5 +455,18 @@ mod version_info_manager_tests {
         let mut manager = VersionInfoManager::new();
         manager.add_version_info();
         assert_eq!(manager.versions().len(), 1);
+    }
+
+    #[test]
+    fn split() {
+        let versions = vec![
+            VersionInfo::new(0),
+            VersionInfo::new(1),
+            VersionInfo::new(2),
+        ];
+        let manager = VersionInfoManager::from_versions(versions.clone());
+        let new_manager = manager.split();
+        assert_eq!(manager.versions().len(), 3);
+        assert_eq!(new_manager.versions().len(), 1);
     }
 }
