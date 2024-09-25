@@ -13,7 +13,7 @@ use crate::{patch::PatchError, timeline::TimelineError};
 pub mod file;
 pub mod folder;
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub enum TrackedItem {
     File(file::TrackedFile),
     Folder(folder::TrackedFolder),

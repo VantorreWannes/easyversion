@@ -5,7 +5,7 @@ use walkdir::WalkDir;
 
 use super::{file::TrackedFile, Version, VersionError};
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub struct TrackedFolder {
     path: PathBuf,
     files: Vec<TrackedFile>,

@@ -9,7 +9,7 @@ use crate::{hash, patch::Patch, timeline::Timeline};
 
 use super::{Version, VersionError};
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub struct TrackedFile {
     path: PathBuf,
     timeline: Timeline,

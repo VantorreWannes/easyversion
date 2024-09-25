@@ -49,7 +49,7 @@ impl From<PatchError> for TimelineError {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub struct Timeline {
     patch_dir: PathBuf,
     patch_paths: Vec<PathBuf>,
