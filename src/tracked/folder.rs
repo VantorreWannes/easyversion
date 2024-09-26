@@ -1,24 +1,29 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
-use walkdir::WalkDir;
 
-use super::{file::TrackedFile, Version, VersionError};
+use super::{file::TrackedFile, TrackedItem, Version, VersionError};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub struct TrackedFolder {
     path: PathBuf,
-    files: Vec<TrackedFile>,
+    files: Vec<TrackedItem>,
 }
 
 impl TrackedFolder {
     pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> Result<Self, VersionError> {
         let mut files = Vec::new();
-        for entry in WalkDir::new(&path).into_iter() {
+        for entry in fs::read_dir(&path.as_ref())? {
             let entry = entry?;
-            if entry.file_type().is_file() {
-                let tracked_file = TrackedFile::new(entry.path(), &patch_dir)?;
-                files.push(tracked_file);
+            if entry.file_type()?.is_file() {
+                let tracked_file = TrackedFile::new(entry.path(), patch_dir.as_ref())?;
+                files.push(tracked_file.into());
+            } else if entry.file_type()?.is_dir() {
+                let tracked_folder = TrackedFolder::new(entry.path(), &patch_dir.as_ref())?;
+                files.push(tracked_folder.into());
             }
         }
 
@@ -32,8 +37,22 @@ impl TrackedFolder {
         &self.path
     }
 
-    pub fn files(&self) -> &[TrackedFile] {
+    pub fn items(&self) -> &[TrackedItem] {
         &self.files
+    }
+
+    pub fn files(&self) -> Vec<&TrackedFile>{
+        self.files.iter().flat_map(|item| match item {
+            TrackedItem::File(file) => vec![file],
+            TrackedItem::Folder(folder) => folder.files()
+        }).collect()
+    }
+
+    pub fn folders(&self) -> Vec<&TrackedFolder> {
+        self.files.iter().flat_map(|item| match item {
+            TrackedItem::File(_) => vec![],
+            TrackedItem::Folder(folder) => vec![folder],
+        }).collect()
     }
 }
 
@@ -60,7 +79,7 @@ impl Version for TrackedFolder {
     }
 
     fn len(&self) -> usize {
-        self.files.first().map(|f| f.len()).unwrap_or(0)
+        self.files.first().map_or(0, |file| file.len())
     }
 }
 
@@ -92,6 +111,7 @@ mod tracked_folder_tests {
         let tracked_folder_path = tracked_folder_path("new");
         let tracked_folder = TrackedFolder::new(&tracked_folder_path, &patch_dir_path);
         assert!(tracked_folder.is_ok());
+        dbg!(tracked_folder?);
         Ok(())
     }
 
@@ -121,5 +141,16 @@ mod tracked_folder_tests {
         tracked_folder.save()?;
         tracked_folder.save()?;
         tracked_folder.delete(0)
+    }
+
+    #[test]
+    fn len() -> Result<(), VersionError> {
+        let patch_dir_path = patch_dir("len");
+        let tracked_folder_path = tracked_folder_path("len");
+        let mut tracked_folder = TrackedFolder::new(&tracked_folder_path, &patch_dir_path)?;
+        tracked_folder.save()?;
+        tracked_folder.save()?;
+        assert_eq!(tracked_folder.len(), 2);
+        Ok(())
     }
 }

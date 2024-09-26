@@ -75,11 +75,23 @@ impl Version for TrackedItem {
     }
 }
 
+impl From<TrackedFile> for TrackedItem {
+    fn from(file: TrackedFile) -> Self {
+        Self::File(file)
+    }
+}
+
+impl From<TrackedFolder> for TrackedItem {
+    fn from(folder: TrackedFolder) -> Self {
+        Self::Folder(folder)
+    }
+}
+
 #[derive(Debug)]
 pub enum VersionError {
     TimelineError(TimelineError),
     IndexOutOfRange(usize),
-    WalkDirError(walkdir::Error),
+    ReadDirError(io::Error),
     InvalidPath(PathBuf),
 }
 
@@ -88,7 +100,7 @@ impl Display for VersionError {
         match self {
             VersionError::TimelineError(err) => err.fmt(f),
             VersionError::IndexOutOfRange(idx) => write!(f, "Index out of range: {}", idx),
-            VersionError::WalkDirError(err) => err.fmt(f),
+            VersionError::ReadDirError(err) => err.fmt(f),
             VersionError::InvalidPath(path) => write!(f, "Invalid path: {}", path.display()),
         }
     }
@@ -98,7 +110,7 @@ impl Error for VersionError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             VersionError::TimelineError(err) => Some(err),
-            VersionError::WalkDirError(err) => Some(err),
+            VersionError::ReadDirError(err) => Some(err),
             _ => None,
         }
     }
@@ -118,13 +130,7 @@ impl From<PatchError> for VersionError {
 
 impl From<io::Error> for VersionError {
     fn from(err: io::Error) -> Self {
-        VersionError::TimelineError(err.into())
-    }
-}
-
-impl From<walkdir::Error> for VersionError {
-    fn from(err: walkdir::Error) -> Self {
-        VersionError::WalkDirError(err)
+        Self::ReadDirError(err)
     }
 }
 
