@@ -9,8 +9,6 @@ use bzip2::{
     Compression,
 };
 
-use crate::hash;
-
 #[derive(Debug)]
 pub enum PatchError {
     IoError(io::Error),
@@ -75,22 +73,14 @@ impl Patch {
         Ok(())
     }
 
-    #[inline]
     pub fn data(&self) -> &[u8] {
         &self.data
     }
 
-    #[inline]
-    pub fn id(&self) -> u64 {
-        hash(self)
-    }
-
-    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -108,6 +98,10 @@ impl Patch {
         Self {
             data: data.to_vec(),
         }
+    }
+
+    pub fn filename(hash: u64) -> String {
+        format!("{}.bsdiff.bz2", hash)
     }
 }
 
@@ -146,13 +140,6 @@ mod patch_tests {
         let target = [1, 2, 3];
         let patch = Patch::new(&source, &target)?;
         assert_eq!(patch.apply(&source)?, target);
-        Ok(())
-    }
-
-    #[test]
-    fn id() -> Result<(), PatchError> {
-        let patch = Patch::new(&[2], &[1, 2, 3])?;
-        assert_eq!(patch.id(), 132369031730439770);
         Ok(())
     }
 
