@@ -58,8 +58,12 @@ impl VersionInfoManager {
         self.versions.iter().any(|v| v.label() == Some(label))
     }
 
-    pub fn set_label(&mut self, version_identifier: &VersionIdentifier, label: &Label) -> Result<(), VersionInfoManagerError> {
-        if self.contains_label(&label) {
+    pub fn set_label(
+        &mut self,
+        version_identifier: &VersionIdentifier,
+        label: &Label,
+    ) -> Result<(), VersionInfoManagerError> {
+        if self.contains_label(label) {
             return Err(VersionInfoManagerError::DuplicateLabel(label.clone()));
         }
         if let Some(version) = self.get_mut(version_identifier) {
@@ -69,7 +73,7 @@ impl VersionInfoManager {
     }
 
     pub fn add_version(&mut self) {
-        self.versions.push(VersionInfo::new(self.versions.len()));   
+        self.versions.push(VersionInfo::new(self.versions.len()));
     }
 
     pub fn remove_version(&mut self, version_identifier: &VersionIdentifier) {
@@ -151,7 +155,11 @@ mod version_info_manager_tests {
         let mut version_info_manager = VersionInfoManager::new();
         version_info_manager.add_version();
         let label = Label::new("label").unwrap();
-        assert!(version_info_manager.set_label(&VersionIdentifier::Index(0), &label).is_ok());
-        assert!(version_info_manager.set_label(&VersionIdentifier::Index(0), &label).is_err());
+        assert!(version_info_manager
+            .set_label(&VersionIdentifier::Index(0), &label)
+            .is_ok());
+        assert!(version_info_manager
+            .set_label(&VersionIdentifier::Index(0), &label)
+            .is_err());
     }
 }

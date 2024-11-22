@@ -53,7 +53,6 @@ impl VersionInfo {
     pub fn message(&self) -> Option<&str> {
         self.message.as_deref()
     }
-
 }
 
 impl PartialOrd for VersionInfo {
@@ -61,4 +60,3 @@ impl PartialOrd for VersionInfo {
         self.index.partial_cmp(&other.index)
     }
 }
-
