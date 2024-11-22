@@ -1,78 +1,124 @@
-use std::{
-    error::Error,
-    fmt::Display,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{error::Error, fmt::Display};
 
 use file::TrackedFile;
 use folder::TrackedFolder;
 use serde::{Deserialize, Serialize};
 
-use crate::{patch::PatchError, timeline::TimelineError};
+use crate::patches::patch_timeline::PatchTimelineError;
+
 pub mod file;
 pub mod folder;
 
+#[derive(Debug)]
+pub enum VersionError {
+    PatchTimelineError(PatchTimelineError),
+}
+
+impl Display for VersionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VersionError::PatchTimelineError(patch_timeline_error) => {
+                write!(f, "{}", patch_timeline_error)
+            }
+        }
+    }
+}
+
+impl Error for VersionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            VersionError::PatchTimelineError(err) => Some(err),
+        }
+    }
+}
+
+impl From<PatchTimelineError> for VersionError {
+    fn from(err: PatchTimelineError) -> Self {
+        Self::PatchTimelineError(err)
+    }
+}
+
+pub trait Version {
+    /// Commits the current state as a new version.
+    fn commit(&mut self) -> Result<(), VersionError>;
+
+    /// Loads the state from the version at the given index.
+    fn load_version(&self, index: usize) -> Result<(), VersionError>;
+
+    /// Deletes the version at the given index.
+    fn delete_version(&mut self, index: usize) -> Result<(), VersionError>;
+
+    /// Returns the total number of versions.
+    fn version_count(&self) -> usize;
+
+    /// Checks if there are no versions saved.
+    fn is_empty(&self) -> bool {
+        self.version_count() == 0
+    }
+
+    /// Retrieves the index of the latest version.
+    fn latest_version_index(&self) -> Option<usize> {
+        match self.version_count() {
+            0 => None,
+            len => Some(len - 1),
+        }
+    }
+
+    /// Loads the latest version.
+    fn load_latest(&mut self) -> Result<(), VersionError> {
+        match self.latest_version_index() {
+            Some(index) => self.load_version(index),
+            None => Err(VersionError::PatchTimelineError(
+                PatchTimelineError::NoVersionsAvailable,
+            )),
+        }
+    }
+
+    /// Deletes the latest version.
+    fn delete_latest(&mut self) -> Result<(), VersionError> {
+        match self.latest_version_index() {
+            Some(index) => self.delete_version(index),
+            None => Err(VersionError::PatchTimelineError(
+                PatchTimelineError::NoVersionsAvailable,
+            )),
+        }
+    }
+
+    /// Replaces the latest version with the current state.
+    fn replace_latest(&mut self) -> Result<(), VersionError> {
+        self.delete_latest()?;
+        self.commit()
+    }
+
+    /// Reverts to the latest saved version.
+    fn revert(&mut self) -> Result<(), VersionError> {
+        self.load_latest()
+    }
+
+    /// Deletes all saved versions.
+    fn clear_versions(&mut self) -> Result<(), VersionError> {
+        for _ in 0..self.version_count() {
+            self.delete_latest()?;
+        }
+        Ok(())
+    }
+
+    /// Creates a new instance starting from the currently loaded version.
+    fn fork(&self) -> Result<Self, VersionError>
+    where
+        Self: Sized + Clone,
+    {
+        let mut new_instance = self.clone();
+        new_instance.clear_versions()?;
+        new_instance.commit()?;
+        Ok(new_instance)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Hash)]
 pub enum TrackedItem {
-    File(file::TrackedFile),
-    Folder(folder::TrackedFolder),
-}
-
-impl TrackedItem {
-    pub fn new(path: impl AsRef<Path>, patch_dir: impl AsRef<Path>) -> Result<Self, VersionError> {
-        if path.as_ref().is_file() {
-            Ok(Self::File(file::TrackedFile::new(path, patch_dir)?))
-        } else if path.as_ref().is_dir() {
-            Ok(Self::Folder(folder::TrackedFolder::new(path, patch_dir)?))
-        } else {
-            Err(VersionError::InvalidPath(path.as_ref().to_path_buf()))
-        }
-    }
-
-    pub fn file(&self) -> Option<&TrackedFile> {
-        match self {
-            TrackedItem::File(file) => Some(file),
-            _ => None,
-        }
-    }
-
-    pub fn folder(&self) -> Option<&TrackedFolder> {
-        match self {
-            TrackedItem::Folder(folder) => Some(folder),
-            _ => None,
-        }
-    }
-}
-
-impl Version for TrackedItem {
-    fn save(&mut self) -> Result<(), VersionError> {
-        match self {
-            TrackedItem::File(file) => file.save(),
-            TrackedItem::Folder(folder) => folder.save(),
-        }
-    }
-
-    fn load(&mut self, index: usize) -> Result<(), VersionError> {
-        match self {
-            TrackedItem::File(file) => file.load(index),
-            TrackedItem::Folder(folder) => folder.load(index),
-        }
-    }
-
-    fn delete(&mut self, index: usize) -> Result<(), VersionError> {
-        match self {
-            TrackedItem::File(file) => file.delete(index),
-            TrackedItem::Folder(folder) => folder.delete(index),
-        }
-    }
-
-    fn len(&self) -> usize {
-        match self {
-            TrackedItem::File(file) => file.len(),
-            TrackedItem::Folder(folder) => folder.len(),
-        }
-    }
+    File(TrackedFile),
+    Folder(TrackedFolder),
 }
 
 impl From<TrackedFile> for TrackedItem {
@@ -87,94 +133,48 @@ impl From<TrackedFolder> for TrackedItem {
     }
 }
 
-#[derive(Debug)]
-pub enum VersionError {
-    TimelineError(TimelineError),
-    IndexOutOfRange(usize),
-    ReadDirError(io::Error),
-    InvalidPath(PathBuf),
-}
-
-impl Display for VersionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl TrackedItem {
+    pub fn file(&self) -> Option<&TrackedFile> {
         match self {
-            VersionError::TimelineError(err) => err.fmt(f),
-            VersionError::IndexOutOfRange(idx) => write!(f, "Index out of range: {}", idx),
-            VersionError::ReadDirError(err) => err.fmt(f),
-            VersionError::InvalidPath(path) => write!(f, "Invalid path: {}", path.display()),
+            Self::File(file) => Some(file),
+            _ => None,
         }
     }
-}
 
-impl Error for VersionError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
+    pub fn folder(&self) -> Option<&TrackedFolder> {
         match self {
-            VersionError::TimelineError(err) => Some(err),
-            VersionError::ReadDirError(err) => Some(err),
+            Self::Folder(folder) => Some(folder),
             _ => None,
         }
     }
 }
 
-impl From<TimelineError> for VersionError {
-    fn from(err: TimelineError) -> Self {
-        VersionError::TimelineError(err)
-    }
-}
-
-impl From<PatchError> for VersionError {
-    fn from(err: PatchError) -> Self {
-        VersionError::TimelineError(err.into())
-    }
-}
-
-impl From<io::Error> for VersionError {
-    fn from(err: io::Error) -> Self {
-        Self::ReadDirError(err)
-    }
-}
-
-pub trait Version {
-    fn save(&mut self) -> Result<(), VersionError>;
-
-    fn load(&mut self, index: usize) -> Result<(), VersionError>;
-
-    fn delete(&mut self, index: usize) -> Result<(), VersionError>;
-
-    fn len(&self) -> usize;
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
+impl Version for TrackedItem {
+    fn commit(&mut self) -> Result<(), VersionError> {
+        match self {
+            Self::File(file) => file.commit(),
+            Self::Folder(folder) => folder.commit(),
+        }
     }
 
-    fn last_index(&self) -> usize {
-        self.len().saturating_sub(1)
+    fn load_version(&self, index: usize) -> Result<(), VersionError> {
+        match self {
+            Self::File(file) => file.load_version(index),
+            Self::Folder(folder) => folder.load_version(index),
+        }
     }
 
-    fn load_last(&mut self) -> Result<(), VersionError> {
-        self.load(self.last_index())
+    fn delete_version(&mut self, index: usize) -> Result<(), VersionError> {
+        match self {
+            Self::File(file) => file.delete_version(index),
+            Self::Folder(folder) => folder.delete_version(index),
+        }
     }
 
-    fn delete_last(&mut self) -> Result<(), VersionError> {
-        self.delete(self.last_index())
-    }
-
-    fn restore(&mut self) -> Result<(), VersionError> {
-        self.load_last()
-    }
-
-    fn clear(&mut self) -> Result<(), VersionError> {
-        self.delete(0)
-    }
-
-    fn split(&mut self, index: usize) -> Result<Self, VersionError>
-    where
-        Self: Sized + Clone,
-    {
-        self.load(index)?;
-        let mut other = self.clone();
-        other.clear()?;
-        other.save()?;
-        Ok(other)
+    fn version_count(&self) -> usize {
+        match self {
+            Self::File(file) => file.version_count(),
+            Self::Folder(folder) => folder.version_count(),
+        }
     }
 }
