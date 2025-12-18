@@ -1,0 +1,15 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "ev"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.100"
+clap = "4.5.53"
+directories = "6.0.0"
+easyversion = { version = "0.1.0", path = ".." }
+thiserror = "2.0.17"
