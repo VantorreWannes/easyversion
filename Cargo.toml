@@ -5,17 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
-directories = "6.0.0"
-env_logger = "0.11.8"
-gxhash = { version = "3.5.0", features = ["deterministic"] }
-log = "0.4.29"
-lz4_flex = "0.12.0"
-rayon = "1.11.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-tempfile = "3.23.0"
 thiserror = "2.0.17"
-walkdir = "2.5.0"
 
 [[bench]]
 name = "main"
