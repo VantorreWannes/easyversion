@@ -6,6 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use walkdir::WalkDir;
 
 use crate::model::Id;
 
@@ -54,6 +55,26 @@ impl KVStore {
         let file_path = self.file_path(key);
         let data = fs::read(&file_path)?;
         Ok(data)
+    }
+
+    pub fn keys(&self) -> Result<Vec<Id>, StoreError> {
+        WalkDir::new(&self.directory)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "evdata"))
+            .filter_map(|e| {
+                e.path()
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .map(String::from)
+            })
+            .map(|stem| {
+                stem.parse::<u64>()
+                    .map(|digest| Id { digest })
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e).into())
+            })
+            .collect()
     }
 }
 
@@ -115,5 +136,22 @@ mod tests {
 
         let read_data = store.get(id).unwrap();
         assert_eq!(read_data, data);
+    }
+
+    #[test]
+    fn test_keys() {
+        let dir = tempdir().unwrap();
+        let store = KVStore::new(dir.path()).unwrap();
+
+        let id1 = Id { digest: 12345 };
+        let id2 = Id { digest: 67890 };
+
+        store.set(id1, b"data1").unwrap();
+        store.set(id2, b"data2").unwrap();
+
+        let mut keys = store.keys().unwrap();
+        keys.sort_by_key(|id| id.digest);
+
+        assert_eq!(keys, vec![id1, id2]);
     }
 }
