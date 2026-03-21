@@ -95,7 +95,7 @@ fn execute(
             let version_idx = sub_matches.get_one::<usize>("version").copied();
 
             let version = match version_idx {
-                Some(idx) => Version::Specific(idx.saturating_sub(1)), // 1-based to 0-based
+                Some(idx) => Version::Specific(idx.saturating_sub(1)),
                 None => Version::Latest,
             };
 
