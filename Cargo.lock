@@ -184,6 +184,7 @@ dependencies = [
  "clap",
  "directories",
  "easyversion",
+ "tempfile",
  "thiserror",
 ]
 
