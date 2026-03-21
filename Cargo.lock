@@ -287,9 +287,11 @@ dependencies = [
  "anyhow",
  "criterion",
  "gxhash",
+ "rayon",
  "serde",
  "tempfile",
  "thiserror",
+ "walkdir",
 ]
 
 [[package]]
