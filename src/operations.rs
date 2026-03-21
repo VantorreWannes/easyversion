@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     hash::Hasher,
     path::{Path, PathBuf},
@@ -188,6 +188,29 @@ pub fn split(
         source_directory,
         target_directory,
     )?;
+
+    Ok(())
+}
+
+pub fn clean(data_store: &FileStore, history_store: &FileStore) -> Result<(), OperationError> {
+    let mut used_ids = HashSet::new();
+
+    for key in history_store.keys()? {
+        if let Some(json_data) = history_store.get(key)? {
+            let hist: History = serde_json::from_slice(&json_data)?;
+            for snapshot in hist.snapshots {
+                for id in snapshot.manifest.files.values() {
+                    used_ids.insert(*id);
+                }
+            }
+        }
+    }
+
+    for key in data_store.keys()? {
+        if !used_ids.contains(&key) {
+            data_store.remove(key)?;
+        }
+    }
 
     Ok(())
 }
@@ -388,5 +411,40 @@ mod tests {
 
         assert_eq!(target_history.snapshots.len(), 1);
         assert_eq!(target_history.snapshots[0].comment, Some("v1".into()));
+    }
+
+    #[test]
+    fn test_clean() {
+        let dir = tempdir().unwrap();
+        let data_store = FileStore::new(&dir.path().join("data")).unwrap();
+        let history_store = FileStore::new(&dir.path().join("history")).unwrap();
+
+        let source_dir = dir.path().join("source");
+        fs::create_dir_all(&source_dir).unwrap();
+
+        let file_path = source_dir.join("referenced.txt");
+        let referenced_data = b"i am referenced";
+        fs::write(&file_path, referenced_data).unwrap();
+        save(&data_store, &history_store, &source_dir, None).unwrap();
+
+        let referenced_id = data_id(referenced_data);
+
+        let unreferenced_data = b"i am ghost";
+        let unreferenced_id = data_id(unreferenced_data);
+        data_store.set(unreferenced_id, unreferenced_data).unwrap();
+
+        let data_keys = data_store.keys().unwrap();
+        assert_eq!(data_keys.len(), 2);
+        assert!(data_keys.contains(&referenced_id));
+        assert!(data_keys.contains(&unreferenced_id));
+
+        clean(&data_store, &history_store).unwrap();
+
+        let data_keys_after = data_store.keys().unwrap();
+        assert_eq!(data_keys_after.len(), 1);
+        assert!(data_keys_after.contains(&referenced_id));
+        assert!(!data_keys_after.contains(&unreferenced_id));
+
+        assert!(data_store.get(referenced_id).unwrap().is_some());
     }
 }
