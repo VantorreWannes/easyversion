@@ -20,11 +20,11 @@ pub enum StoreError {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct KVStore {
+pub struct FileStore {
     directory: PathBuf,
 }
 
-impl KVStore {
+impl FileStore {
     pub fn new(directory: &Path) -> Result<Self, StoreError> {
         fs::create_dir_all(directory)?;
         Ok(Self {
@@ -87,7 +87,7 @@ mod tests {
     fn test_new() {
         let dir = tempdir().unwrap();
         let store_dir = dir.path().join("store");
-        let store = KVStore::new(&store_dir).unwrap();
+        let store = FileStore::new(&store_dir).unwrap();
 
         assert!(store_dir.exists());
         assert_eq!(store.directory(), store_dir);
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn test_directory() {
         let dir = tempdir().unwrap();
-        let store = KVStore::new(dir.path()).unwrap();
+        let store = FileStore::new(dir.path()).unwrap();
 
         assert_eq!(store.directory(), dir.path());
     }
@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn test_file_path() {
         let dir = tempdir().unwrap();
-        let store = KVStore::new(dir.path()).unwrap();
+        let store = FileStore::new(dir.path()).unwrap();
         let id = Id { digest: 12345 };
 
         let expected = dir.path().join("12345.evdata");
@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn test_set() {
         let dir = tempdir().unwrap();
-        let store = KVStore::new(dir.path()).unwrap();
+        let store = FileStore::new(dir.path()).unwrap();
         let id = Id { digest: 12345 };
         let data = b"test data";
 
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn test_get() {
         let dir = tempdir().unwrap();
-        let store = KVStore::new(dir.path()).unwrap();
+        let store = FileStore::new(dir.path()).unwrap();
         let id = Id { digest: 12345 };
         let data = b"test data";
 
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_keys() {
         let dir = tempdir().unwrap();
-        let store = KVStore::new(dir.path()).unwrap();
+        let store = FileStore::new(dir.path()).unwrap();
 
         let id1 = Id { digest: 12345 };
         let id2 = Id { digest: 67890 };
