@@ -8,6 +8,7 @@ use easyversion::{
     operations::{Version, clean, history, save, split},
     store::FileStore,
 };
+use log::{info, warn};
 
 fn command() -> Command {
     Command::new("ev")
@@ -72,11 +73,13 @@ fn execute(
     match matches.subcommand() {
         Some(("save", sub_matches)) => {
             let comment = sub_matches.get_one::<String>("comment").cloned();
+            info!("Running save command");
             save(&data_store, &history_store, &current_directory, comment)
                 .context("Failed to save version")?;
             Ok(())
         }
         Some(("list", _)) => {
+            info!("Running list command");
             if let Some(hist) = history(&history_store, &current_directory)? {
                 for (i, snapshot) in hist.snapshots.iter().enumerate() {
                     let comment = snapshot.comment.as_deref().unwrap_or("No comment");
@@ -99,9 +102,11 @@ fn execute(
             let overwrite = sub_matches.get_flag("overwrite");
 
             if path.exists() && !overwrite {
+                warn!("Target path already exists. Refusing to overwrite.");
                 anyhow::bail!("Target path already exists. Use --overwrite to ignore.");
             }
 
+            info!("Running split command to {:?}", path);
             split(
                 &data_store,
                 &history_store,
@@ -113,9 +118,11 @@ fn execute(
             Ok(())
         }
         Some(("clean", _)) => {
+            info!("Running clean command");
             clean(&data_store, &history_store).context("Failed to clean workspace")?;
             Ok(())
         }
+
         _ => unreachable!("Clap should ensure we don't get here"),
     }
 }
@@ -138,6 +145,8 @@ fn easyversion() -> anyhow::Result<()> {
 }
 
 fn main() {
+    env_logger::init();
+
     if let Err(err) = easyversion() {
         eprintln!("Error: {:#}", err);
         std::process::exit(1);

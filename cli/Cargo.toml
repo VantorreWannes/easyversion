@@ -13,6 +13,8 @@ clap = "4.5.53"
 directories = "6.0.0"
 easyversion = { version = "0.1.0", path = ".." }
 thiserror = "2.0.17"
+log = "0.4.29"
+env_logger = "0.11.9"
 
 [dev-dependencies]
 tempfile = "3.23.0"

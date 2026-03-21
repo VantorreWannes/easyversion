@@ -6,6 +6,7 @@ use std::{
 };
 
 use gxhash::GxHasher;
+use log::{debug, info};
 use rayon::prelude::*;
 use thiserror::Error;
 use walkdir::WalkDir;
@@ -58,9 +59,11 @@ fn manifest(store: &FileStore, directory: &Path) -> Result<Manifest, OperationEr
     let entries: Vec<PathBuf> = WalkDir::new(directory)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
+        .filter(|e| e.file_type().is_file() && !e.file_type().is_symlink())
         .map(|e| e.into_path())
         .collect();
+
+    debug!("Found {} files to process", entries.len());
 
     let new_entries: Vec<(PathBuf, Id)> = entries
         .par_iter()
@@ -70,6 +73,8 @@ fn manifest(store: &FileStore, directory: &Path) -> Result<Manifest, OperationEr
     for (path, id) in new_entries {
         manifest.files.insert(path, id);
     }
+
+    debug!("Manifest generated with {} files", manifest.files.len());
 
     Ok(manifest)
 }
@@ -103,11 +108,14 @@ pub fn save(
     directory: &Path,
     comment: Option<String>,
 ) -> Result<(), OperationError> {
-    let snapshot = snapshot(data_store, directory, comment)?;
+    info!("Saving snapshot for {:?}", directory);
+    let snapshot = snapshot(data_store, directory, comment.clone())?;
 
     let mut hist = history(history_store, directory)?.unwrap_or_default();
 
     hist.snapshots.push(snapshot);
+    let snapshot_index = hist.snapshots.len() - 1;
+    debug!("Appended snapshot at index {}", snapshot_index);
 
     let key = path_id(directory);
     let serialized_history = serde_json::to_vec(&hist)?;
@@ -134,6 +142,11 @@ fn load(
     source_directory: &Path,
     target_directory: &Path,
 ) -> Result<(), OperationError> {
+    info!(
+        "Loading {} files into {:?}",
+        manifest.files.len(),
+        target_directory
+    );
     for (file_path, id) in &manifest.files {
         let relative_path = file_path
             .strip_prefix(source_directory)
@@ -159,6 +172,7 @@ pub fn split(
     target_directory: &Path,
     version: Version,
 ) -> Result<(), OperationError> {
+    info!("Splitting {:?} to {:?}", source_directory, target_directory);
     let mut hist = history(history_store, source_directory)?.ok_or_else(|| {
         std::io::Error::new(std::io::ErrorKind::NotFound, "Source history not found")
     })?;
@@ -167,6 +181,8 @@ pub fn split(
         Version::Latest => hist.snapshots.len().saturating_sub(1),
         Version::Specific(idx) => idx,
     };
+
+    debug!("Splitting at snapshot index {}", target_index);
 
     if target_index >= hist.snapshots.len() {
         return Err(std::io::Error::new(
@@ -193,6 +209,7 @@ pub fn split(
 }
 
 pub fn clean(data_store: &FileStore, history_store: &FileStore) -> Result<(), OperationError> {
+    info!("Starting clean operation");
     let mut used_ids = HashSet::new();
 
     for key in history_store.keys()? {
@@ -206,12 +223,20 @@ pub fn clean(data_store: &FileStore, history_store: &FileStore) -> Result<(), Op
         }
     }
 
+    debug!("Found {} referenced data objects", used_ids.len());
+    let mut removed_count = 0;
+
     for key in data_store.keys()? {
         if !used_ids.contains(&key) {
             data_store.remove(key)?;
+            removed_count += 1;
         }
     }
 
+    info!(
+        "Clean complete: {} unreferenced objects removed",
+        removed_count
+    );
     Ok(())
 }
 

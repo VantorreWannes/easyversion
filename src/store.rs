@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use log::debug;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -46,6 +47,7 @@ impl FileStore {
         fs::write(&temp_file, value)?;
 
         let file_path = self.file_path(key);
+        debug!("Writing to store: {:?}", file_path);
 
         temp_file.persist(&file_path)?;
         Ok(())
@@ -53,15 +55,20 @@ impl FileStore {
 
     pub fn get(&self, key: Id) -> Result<Option<Vec<u8>>, StoreError> {
         let file_path = self.file_path(key);
+        debug!("Reading from store: {:?}", file_path);
         match fs::read(&file_path) {
             Ok(data) => Ok(Some(data)),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                debug!("File not found in store: {:?}", file_path);
+                Ok(None)
+            }
             Err(e) => Err(e.into()),
         }
     }
 
     pub fn remove(&self, key: Id) -> Result<(), StoreError> {
         let file_path = self.file_path(key);
+        debug!("Removing from store: {:?}", file_path);
         match fs::remove_file(&file_path) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
