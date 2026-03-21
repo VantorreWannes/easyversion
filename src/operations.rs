@@ -136,23 +136,9 @@ impl Default for Version {
     }
 }
 
-fn load(
-    data_store: &FileStore,
-    manifest: &Manifest,
-    source_directory: &Path,
-    target_directory: &Path,
-) -> Result<(), OperationError> {
-    info!(
-        "Loading {} files into {:?}",
-        manifest.files.len(),
-        target_directory
-    );
-    for (file_path, id) in &manifest.files {
-        let relative_path = file_path
-            .strip_prefix(source_directory)
-            .unwrap_or(file_path);
-        let dest_path = target_directory.join(relative_path);
-
+fn load(data_store: &FileStore, manifest: &Manifest) -> Result<(), OperationError> {
+    info!("Loading {} files", manifest.files.len());
+    for (dest_path, id) in &manifest.files {
         if let Some(parent) = dest_path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -194,16 +180,21 @@ pub fn split(
 
     hist.snapshots.truncate(target_index + 1);
 
+    for snapshot in &mut hist.snapshots {
+        let mut new_files = HashMap::new();
+        for (old_path, id) in snapshot.manifest.files.drain() {
+            let relative_path = old_path.strip_prefix(source_directory).unwrap_or(&old_path);
+            let new_path = target_directory.join(relative_path);
+            new_files.insert(new_path, id);
+        }
+        snapshot.manifest.files = new_files;
+    }
+
     let target_key = path_id(target_directory);
     let serialized_history = serde_json::to_vec(&hist)?;
     history_store.set(target_key, &serialized_history)?;
 
-    load(
-        data_store,
-        &hist.snapshots[target_index].manifest,
-        source_directory,
-        target_directory,
-    )?;
+    load(data_store, &hist.snapshots[target_index].manifest)?;
 
     Ok(())
 }
@@ -390,7 +381,6 @@ mod tests {
         let data_store_dir = dir.path().join("data");
         let data_store = FileStore::new(&data_store_dir).unwrap();
 
-        let source_dir = dir.path().join("source");
         let target_dir = dir.path().join("target");
 
         let file_data = b"mock file content";
@@ -400,14 +390,14 @@ mod tests {
         let mut manifest = Manifest {
             files: HashMap::new(),
         };
-        let mock_source_path = source_dir.join("subfolder/data.txt");
-        manifest.files.insert(mock_source_path.clone(), file_id);
 
-        load(&data_store, &manifest, &source_dir, &target_dir).unwrap();
+        let mock_dest_path = target_dir.join("subfolder/data.txt");
+        manifest.files.insert(mock_dest_path.clone(), file_id);
 
-        let expected_dest_path = target_dir.join("subfolder/data.txt");
-        assert!(expected_dest_path.exists());
-        assert_eq!(fs::read(&expected_dest_path).unwrap(), file_data);
+        load(&data_store, &manifest).unwrap();
+
+        assert!(mock_dest_path.exists());
+        assert_eq!(fs::read(&mock_dest_path).unwrap(), file_data);
     }
 
     #[test]

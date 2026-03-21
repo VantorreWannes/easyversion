@@ -106,12 +106,18 @@ fn execute(
                 anyhow::bail!("Target path already exists. Use --overwrite to ignore.");
             }
 
-            info!("Running split command to {:?}", path);
+            if !path.exists() {
+                std::fs::create_dir_all(path).context("Failed to create target directory")?;
+            }
+            let target_path =
+                std::fs::canonicalize(path).context("Failed to resolve absolute target path")?;
+
+            info!("Running split command to {:?}", target_path);
             split(
                 &data_store,
                 &history_store,
                 &current_directory,
-                path,
+                &target_path,
                 version,
             )
             .context("Failed to split workspace")?;
