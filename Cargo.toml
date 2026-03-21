@@ -11,6 +11,7 @@ gxhash = { version = "3.5.0", features = ["deterministic"] }
 tempfile = "3.23.0"
 walkdir = "2.5.0"
 rayon = "1.11.0"
+serde_json = "1.0.145"
 
 [[bench]]
 name = "main"

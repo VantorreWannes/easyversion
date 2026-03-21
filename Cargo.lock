@@ -289,6 +289,7 @@ dependencies = [
  "gxhash",
  "rayon",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror",
  "walkdir",
