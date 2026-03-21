@@ -60,6 +60,15 @@ impl FileStore {
         }
     }
 
+    pub fn remove(&self, key: Id) -> Result<(), StoreError> {
+        let file_path = self.file_path(key);
+        match fs::remove_file(&file_path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub fn keys(&self) -> Result<Vec<Id>, StoreError> {
         WalkDir::new(&self.directory)
             .into_iter()
@@ -143,6 +152,22 @@ mod tests {
         let missing_id = Id { digest: 54321 };
         let missing_data = store.get(missing_id).unwrap();
         assert!(missing_data.is_none());
+    }
+
+    #[test]
+    fn test_remove() {
+        let dir = tempdir().unwrap();
+        let store = FileStore::new(dir.path()).unwrap();
+        let id = Id { digest: 12345 };
+        let data = b"test data";
+
+        store.set(id, data).unwrap();
+        assert!(store.get(id).unwrap().is_some());
+
+        store.remove(id).unwrap();
+        assert!(store.get(id).unwrap().is_none());
+
+        store.remove(id).unwrap();
     }
 
     #[test]
