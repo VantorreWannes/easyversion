@@ -3,11 +3,20 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
+use thiserror::Error;
 
 use crate::model::Id;
+
+#[derive(Debug, Error)]
+pub enum StoreError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Persist(#[from] tempfile::PersistError),
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct KVStore {
@@ -15,9 +24,8 @@ pub struct KVStore {
 }
 
 impl KVStore {
-    pub fn new(directory: &Path) -> anyhow::Result<Self> {
-        fs::create_dir_all(directory)
-            .with_context(|| format!("Failed to create storage directory at {:?}", directory))?;
+    pub fn new(directory: &Path) -> Result<Self, StoreError> {
+        fs::create_dir_all(directory)?;
         Ok(Self {
             directory: directory.to_path_buf(),
         })
@@ -31,24 +39,21 @@ impl KVStore {
         self.directory.join(format!("{}.evdata", key.digest))
     }
 
-    pub fn set(&self, key: Id, value: &[u8]) -> anyhow::Result<()> {
-        let temp_file =
-            NamedTempFile::new().context("Failed to create temporary file for storage")?;
+    pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
+        let temp_file = NamedTempFile::new()?;
 
-        fs::write(&temp_file, value)
-            .with_context(|| format!("Failed to write to file: {:?}", &temp_file))?;
+        fs::write(&temp_file, value)?;
 
         let file_path = self.file_path(key);
 
-        temp_file
-            .persist(&file_path)
-            .with_context(|| format!("Failed to persist temporary file to {:?}", &file_path))?;
+        temp_file.persist(&file_path)?;
         Ok(())
     }
 
-    pub fn get(&self, key: Id) -> anyhow::Result<Vec<u8>> {
+    pub fn get(&self, key: Id) -> Result<Vec<u8>, StoreError> {
         let file_path = self.file_path(key);
-        fs::read(&file_path).with_context(|| format!("Failed to read from file: {:?}", &file_path))
+        let data = fs::read(&file_path)?;
+        Ok(data)
     }
 }
 
