@@ -42,7 +42,7 @@ impl FileStore {
     }
 
     pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
-        let temp_file = NamedTempFile::new()?;
+        let temp_file = NamedTempFile::new_in(&self.directory)?;
 
         fs::write(&temp_file, value)?;
 
