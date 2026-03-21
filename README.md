@@ -20,7 +20,7 @@ Instead of confusing "branches" or "commits", EasyVersion uses two simple concep
 1. **Save**: Takes a snapshot of your folder right now.
 2. **Split**: Takes an old snapshot and puts it into a **new folder**.
 
-*Note: "Split" allows you to go back in time or try a new direction without touching your current working folder. It's the safest way to experiment.*
+_Note: "Split" allows you to go back in time or try a new direction without touching your current working folder. It's the safest way to experiment._
 
 ## Installation
 
@@ -44,7 +44,7 @@ Check what snapshots you have saved for this folder.
 ev list
 ```
 
-*Output:*
+_Output:_
 
 ```text
 Saved versions (2):
@@ -55,7 +55,7 @@ Saved versions (2):
 ### 3. Go back in time (Split)
 
 Let's say you liked version 1 better. You want to bring it back, but you don't want to lose what you have now.
-**Split** creates a *separate* folder with the contents of version 1.
+**Split** creates a _separate_ folder with the contents of version 1.
 
 ```bash
 # Creates a new folder called 'MyProject_Old_Idea' containing Version 1
