@@ -208,8 +208,15 @@ pub fn split(
     Ok(())
 }
 
-pub fn clean(data_store: &FileStore, history_store: &FileStore) -> Result<(), OperationError> {
-    info!("Starting clean operation");
+pub fn clean(
+    data_store: &FileStore,
+    history_store: &FileStore,
+    directory: &Path,
+) -> Result<(), OperationError> {
+    info!("Starting clean operation for {:?}", directory);
+    let current_key = path_id(directory);
+    history_store.remove(current_key)?;
+
     let mut used_ids = HashSet::new();
 
     for key in history_store.keys()? {
@@ -463,13 +470,15 @@ mod tests {
         assert!(data_keys.contains(&referenced_id));
         assert!(data_keys.contains(&unreferenced_id));
 
-        clean(&data_store, &history_store).unwrap();
+        clean(&data_store, &history_store, &source_dir).unwrap();
+
+        assert!(history(&history_store, &source_dir).unwrap().is_none());
 
         let data_keys_after = data_store.keys().unwrap();
-        assert_eq!(data_keys_after.len(), 1);
-        assert!(data_keys_after.contains(&referenced_id));
+        assert_eq!(data_keys_after.len(), 0);
+        assert!(!data_keys_after.contains(&referenced_id));
         assert!(!data_keys_after.contains(&unreferenced_id));
 
-        assert!(data_store.get(referenced_id).unwrap().is_some());
+        assert!(data_store.get(referenced_id).unwrap().is_none());
     }
 }

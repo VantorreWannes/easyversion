@@ -119,7 +119,8 @@ fn execute(
         }
         Some(("clean", _)) => {
             info!("Running clean command");
-            clean(&data_store, &history_store).context("Failed to clean workspace")?;
+            clean(&data_store, &history_store, &current_directory)
+                .context("Failed to clean workspace")?;
             Ok(())
         }
 
