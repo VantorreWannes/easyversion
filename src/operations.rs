@@ -11,7 +11,7 @@ use thiserror::Error;
 use walkdir::WalkDir;
 
 use crate::{
-    model::{Id, Manifest},
+    model::{Id, Manifest, Snapshot},
     store::{KVStore, StoreError},
 };
 
@@ -24,7 +24,7 @@ pub enum OperationError {
     Store(#[from] StoreError),
 }
 
-pub fn id(data: &[u8]) -> Id {
+fn data_id(data: &[u8]) -> Id {
     let mut hasher = GxHasher::default();
     hasher.write(data);
     Id {
@@ -32,14 +32,22 @@ pub fn id(data: &[u8]) -> Id {
     }
 }
 
-pub fn store_file(store: &KVStore, path: &Path) -> Result<(PathBuf, Id), OperationError> {
+fn path_id(path: &Path) -> Id {
+    let mut hasher = GxHasher::default();
+    hasher.write(path.to_string_lossy().as_bytes());
+    Id {
+        digest: hasher.finish(),
+    }
+}
+
+fn store_file(store: &KVStore, path: &Path) -> Result<(PathBuf, Id), OperationError> {
     let data = fs::read(path)?;
-    let key = id(&data);
+    let key = data_id(&data);
     store.set(key, &data)?;
     Ok((path.to_path_buf(), key))
 }
 
-pub fn manifest(store: &KVStore, directory: &Path) -> Result<Manifest, OperationError> {
+fn manifest(store: &KVStore, directory: &Path) -> Result<Manifest, OperationError> {
     let mut manifest = Manifest {
         files: HashMap::new(),
     };
@@ -63,6 +71,15 @@ pub fn manifest(store: &KVStore, directory: &Path) -> Result<Manifest, Operation
     Ok(manifest)
 }
 
+fn snapshot(
+    store: &KVStore,
+    directory: &Path,
+    comment: Option<String>,
+) -> Result<Snapshot, OperationError> {
+    let manifest = manifest(store, directory)?;
+    Ok(Snapshot { comment, manifest })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,7 +92,7 @@ mod tests {
         hasher.write(data);
         let expected_digest = hasher.finish();
 
-        let generated_id = id(data);
+        let generated_id = data_id(data);
         assert_eq!(generated_id.digest, expected_digest);
     }
 
@@ -118,8 +135,8 @@ mod tests {
 
         assert_eq!(manifest_result.files.len(), 2);
 
-        let id1 = id(data1);
-        let id2 = id(data2);
+        let id1 = data_id(data1);
+        let id2 = data_id(data2);
 
         assert_eq!(manifest_result.files.get(&file1_path), Some(&id1));
         assert_eq!(manifest_result.files.get(&file2_path), Some(&id2));
