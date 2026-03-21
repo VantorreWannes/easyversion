@@ -7,6 +7,8 @@ edition = "2024"
 anyhow = "1.0.100"
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.17"
+gxhash = { version = "3.5.0", features = ["deterministic"] }
+tempfile = "3.23.0"
 
 [[bench]]
 name = "main"
