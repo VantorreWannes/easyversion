@@ -83,6 +83,20 @@ fn snapshot(
     Ok(Snapshot { comment, manifest })
 }
 
+pub fn history(
+    history_store: &FileStore,
+    directory: &Path,
+) -> Result<Option<History>, OperationError> {
+    let key = path_id(directory);
+    match history_store.get(key)? {
+        Some(json_data) => {
+            let hist: History = serde_json::from_slice(&json_data)?;
+            Ok(Some(hist))
+        }
+        None => Ok(None),
+    }
+}
+
 pub fn save(
     data_store: &FileStore,
     history_store: &FileStore,
@@ -91,17 +105,89 @@ pub fn save(
 ) -> Result<(), OperationError> {
     let snapshot = snapshot(data_store, directory, comment)?;
 
-    let key = path_id(directory);
+    let mut hist = history(history_store, directory)?.unwrap_or_default();
 
-    let mut history: History = match history_store.get(key)? {
-        Some(json_data) => serde_json::from_slice(&json_data)?,
-        None => History::default(),
+    hist.snapshots.push(snapshot);
+
+    let key = path_id(directory);
+    let serialized_history = serde_json::to_vec(&hist)?;
+    history_store.set(key, &serialized_history)?;
+
+    Ok(())
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum Version {
+    Latest,
+    Specific(usize),
+}
+
+impl Default for Version {
+    fn default() -> Self {
+        Version::Latest
+    }
+}
+
+fn load(
+    data_store: &FileStore,
+    manifest: &Manifest,
+    source_directory: &Path,
+    target_directory: &Path,
+) -> Result<(), OperationError> {
+    for (file_path, id) in &manifest.files {
+        let relative_path = file_path
+            .strip_prefix(source_directory)
+            .unwrap_or(file_path);
+        let dest_path = target_directory.join(relative_path);
+
+        if let Some(parent) = dest_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        if let Some(data) = data_store.get(*id)? {
+            fs::write(dest_path, data)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn split(
+    data_store: &FileStore,
+    history_store: &FileStore,
+    source_directory: &Path,
+    target_directory: &Path,
+    version: Version,
+) -> Result<(), OperationError> {
+    let mut hist = history(history_store, source_directory)?.ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::NotFound, "Source history not found")
+    })?;
+
+    let target_index = match version {
+        Version::Latest => hist.snapshots.len().saturating_sub(1),
+        Version::Specific(idx) => idx,
     };
 
-    history.snapshots.push(snapshot);
+    if target_index >= hist.snapshots.len() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Requested version index out of bounds",
+        )
+        .into());
+    }
 
-    let serialized_history = serde_json::to_vec(&history)?;
-    history_store.set(key, &serialized_history)?;
+    hist.snapshots.truncate(target_index + 1);
+
+    let target_key = path_id(target_directory);
+    let serialized_history = serde_json::to_vec(&hist)?;
+    history_store.set(target_key, &serialized_history)?;
+
+    load(
+        data_store,
+        &hist.snapshots[target_index].manifest,
+        source_directory,
+        target_directory,
+    )?;
 
     Ok(())
 }
@@ -198,6 +284,27 @@ mod tests {
     }
 
     #[test]
+    fn test_history() {
+        let dir = tempdir().unwrap();
+        let history_store_dir = dir.path().join("history_store");
+        let history_store = FileStore::new(&history_store_dir).unwrap();
+
+        let target_dir = dir.path().join("target");
+
+        assert!(history(&history_store, &target_dir).unwrap().is_none());
+
+        let dummy_history = History::default();
+        let serialized = serde_json::to_vec(&dummy_history).unwrap();
+        history_store
+            .set(path_id(&target_dir), &serialized)
+            .unwrap();
+
+        let retrieved = history(&history_store, &target_dir).unwrap();
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().snapshots.len(), 0);
+    }
+
+    #[test]
     fn test_save() {
         let dir = tempdir().unwrap();
         let data_store_dir = dir.path().join("data_store");
@@ -214,13 +321,72 @@ mod tests {
         let comment = Some("First commit".to_string());
         save(&data_store, &history_store, &target_dir, comment.clone()).unwrap();
 
-        let p_id = path_id(&target_dir);
-        let history_data = history_store.get(p_id).unwrap().unwrap();
-        let history: History = serde_json::from_slice(&history_data).unwrap();
+        let hist = history(&history_store, &target_dir).unwrap().unwrap();
 
-        assert_eq!(history.snapshots.len(), 1);
-        assert_eq!(history.snapshots[0].comment, comment);
-        assert_eq!(history.snapshots[0].manifest.files.len(), 1);
-        assert!(history.snapshots[0].manifest.files.contains_key(&file_path));
+        assert_eq!(hist.snapshots.len(), 1);
+        assert_eq!(hist.snapshots[0].comment, comment);
+        assert_eq!(hist.snapshots[0].manifest.files.len(), 1);
+        assert!(hist.snapshots[0].manifest.files.contains_key(&file_path));
+    }
+
+    #[test]
+    fn test_load() {
+        let dir = tempdir().unwrap();
+        let data_store_dir = dir.path().join("data");
+        let data_store = FileStore::new(&data_store_dir).unwrap();
+
+        let source_dir = dir.path().join("source");
+        let target_dir = dir.path().join("target");
+
+        let file_data = b"mock file content";
+        let file_id = data_id(file_data);
+        data_store.set(file_id, file_data).unwrap();
+
+        let mut manifest = Manifest {
+            files: HashMap::new(),
+        };
+        let mock_source_path = source_dir.join("subfolder/data.txt");
+        manifest.files.insert(mock_source_path.clone(), file_id);
+
+        load(&data_store, &manifest, &source_dir, &target_dir).unwrap();
+
+        let expected_dest_path = target_dir.join("subfolder/data.txt");
+        assert!(expected_dest_path.exists());
+        assert_eq!(fs::read(&expected_dest_path).unwrap(), file_data);
+    }
+
+    #[test]
+    fn test_split() {
+        let dir = tempdir().unwrap();
+        let data_store = FileStore::new(&dir.path().join("data")).unwrap();
+        let history_store = FileStore::new(&dir.path().join("history")).unwrap();
+
+        let source_dir = dir.path().join("source");
+        fs::create_dir_all(&source_dir).unwrap();
+
+        let file_path = source_dir.join("hello.txt");
+        fs::write(&file_path, b"hello world").unwrap();
+
+        save(&data_store, &history_store, &source_dir, Some("v1".into())).unwrap();
+
+        let target_dir = dir.path().join("target");
+
+        split(
+            &data_store,
+            &history_store,
+            &source_dir,
+            &target_dir,
+            Version::Latest,
+        )
+        .unwrap();
+
+        let target_file_path = target_dir.join("hello.txt");
+        assert!(target_file_path.exists());
+        assert_eq!(fs::read(&target_file_path).unwrap(), b"hello world");
+
+        let target_history = history(&history_store, &target_dir).unwrap().unwrap();
+
+        assert_eq!(target_history.snapshots.len(), 1);
+        assert_eq!(target_history.snapshots[0].comment, Some("v1".into()));
     }
 }
