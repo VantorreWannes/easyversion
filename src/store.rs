@@ -51,10 +51,13 @@ impl FileStore {
         Ok(())
     }
 
-    pub fn get(&self, key: Id) -> Result<Vec<u8>, StoreError> {
+    pub fn get(&self, key: Id) -> Result<Option<Vec<u8>>, StoreError> {
         let file_path = self.file_path(key);
-        let data = fs::read(&file_path)?;
-        Ok(data)
+        match fs::read(&file_path) {
+            Ok(data) => Ok(Some(data)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub fn keys(&self) -> Result<Vec<Id>, StoreError> {
@@ -134,8 +137,12 @@ mod tests {
 
         fs::write(store.file_path(id), data).unwrap();
 
-        let read_data = store.get(id).unwrap();
+        let read_data = store.get(id).unwrap().unwrap();
         assert_eq!(read_data, data);
+
+        let missing_id = Id { digest: 54321 };
+        let missing_data = store.get(missing_id).unwrap();
+        assert!(missing_data.is_none());
     }
 
     #[test]
