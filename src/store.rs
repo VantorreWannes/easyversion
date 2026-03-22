@@ -46,7 +46,6 @@ impl FileStore {
     }
 
     /// Writes and compresses data into the store for the given key.
-    /// Always overwrites the file if it already exists.
     pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
         let file_path = self.file_path(key);
 
