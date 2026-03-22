@@ -29,7 +29,7 @@ pub enum OperationError {
 }
 
 fn data_id(data: &[u8]) -> Id {
-    let mut hasher = GxHasher::default();
+    let mut hasher = GxHasher::with_seed(0);
     hasher.write(data);
     Id {
         digest: hasher.finish(),
@@ -37,13 +37,12 @@ fn data_id(data: &[u8]) -> Id {
 }
 
 fn path_id(path: &Path) -> Id {
-    let mut hasher = GxHasher::default();
+    let mut hasher = GxHasher::with_seed(0);
     hasher.write(path.to_string_lossy().as_bytes());
     Id {
         digest: hasher.finish(),
     }
 }
-
 fn store_file(store: &FileStore, path: &Path) -> Result<(PathBuf, Id), OperationError> {
     let data = fs::read(path)?;
     let key = data_id(&data);
