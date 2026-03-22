@@ -1,6 +1,6 @@
 use std::{
     fs,
-    io::Cursor,
+    io::{Cursor, Write},
     path::{Path, PathBuf},
 };
 
@@ -45,19 +45,33 @@ impl FileStore {
         self.directory.join(format!("{}.evdata", key.digest))
     }
 
-    /// Reads and decompresses data from the store for the given key.
-    /// Returns `None` if the key does not exist.
+    /// Writes and compresses data into the store for the given key.
     pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
-        let temp_file = NamedTempFile::new_in(&self.directory)?;
+        let file_path = self.file_path(key);
+
+        // Fast path: If the file already exists, it has the exact same content.
+        if file_path.exists() {
+            debug!("File already exists in store: {:?}", file_path);
+            return Ok(());
+        }
+
+        let mut temp_file = NamedTempFile::new_in(&self.directory)?;
 
         let compressed_value = zstd::encode_all(Cursor::new(value), 0)?;
-        fs::write(&temp_file, compressed_value)?;
+        temp_file.write_all(&compressed_value)?;
 
-        let file_path = self.file_path(key);
         debug!("Writing to store: {:?}", file_path);
 
-        temp_file.persist(&file_path)?;
-        Ok(())
+        match temp_file.persist(&file_path) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                if file_path.exists() {
+                    Ok(())
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
     }
 
     /// Reads and decompresses data from the store for the given key.
