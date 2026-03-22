@@ -143,8 +143,18 @@ fn load(data_store: &FileStore, manifest: &Manifest) -> Result<(), OperationErro
             fs::create_dir_all(parent)?;
         }
 
-        if let Some(data) = data_store.get(*id)? {
-            fs::write(dest_path, data)?;
+        match data_store.get(*id)? {
+            Some(data) => fs::write(dest_path, data)?,
+            None => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!(
+                        "Critical: Referenced data blob {:?} is missing from the store",
+                        id.digest
+                    ),
+                )
+                .into());
+            }
         }
     }
 
