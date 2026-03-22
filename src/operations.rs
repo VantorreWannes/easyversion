@@ -50,7 +50,6 @@ fn store_file(store: &FileStore, path: &Path) -> Result<(PathBuf, Id), Operation
     store.set(key, &data)?;
     Ok((path.to_path_buf(), key))
 }
-
 fn manifest(store: &FileStore, directory: &Path) -> Result<Manifest, OperationError> {
     let mut manifest = Manifest {
         files: HashMap::new(),
@@ -58,7 +57,13 @@ fn manifest(store: &FileStore, directory: &Path) -> Result<Manifest, OperationEr
 
     let entries: Vec<PathBuf> = WalkDir::new(directory)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(|e| match e {
+            Ok(entry) => Some(entry),
+            Err(err) => {
+                log::warn!("Skipping file due to read error: {}", err);
+                None
+            }
+        })
         .filter(|e| e.file_type().is_file() && !e.file_type().is_symlink())
         .map(|e| e.into_path())
         .collect();
