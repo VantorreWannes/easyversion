@@ -21,12 +21,14 @@ pub enum StoreError {
     Persist(#[from] tempfile::PersistError),
 }
 
+/// An atomic, content-addressed file store.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FileStore {
     directory: PathBuf,
 }
 
 impl FileStore {
+    /// Initializes a new `FileStore` at the specified path, creating the directory if it does not exist.
     pub fn new(directory: &Path) -> Result<Self, StoreError> {
         fs::create_dir_all(directory)?;
         Ok(Self {
@@ -34,6 +36,7 @@ impl FileStore {
         })
     }
 
+    /// Returns the absolute path to the directory underlying this store.
     pub fn directory(&self) -> &Path {
         &self.directory
     }
@@ -42,6 +45,8 @@ impl FileStore {
         self.directory.join(format!("{}.evdata", key.digest))
     }
 
+    /// Reads and decompresses data from the store for the given key.
+    /// Returns `None` if the key does not exist.
     pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
         let temp_file = NamedTempFile::new_in(&self.directory)?;
 
@@ -55,6 +60,8 @@ impl FileStore {
         Ok(())
     }
 
+    /// Reads and decompresses data from the store for the given key.
+    /// Returns `None` if the key does not exist.
     pub fn get(&self, key: Id) -> Result<Option<Vec<u8>>, StoreError> {
         let file_path = self.file_path(key);
         debug!("Reading from store: {:?}", file_path);
@@ -71,6 +78,7 @@ impl FileStore {
         }
     }
 
+    /// Removes a key from the store. Succeeds silently if the key did not exist.
     pub fn remove(&self, key: Id) -> Result<(), StoreError> {
         let file_path = self.file_path(key);
         debug!("Removing from store: {:?}", file_path);
@@ -81,6 +89,7 @@ impl FileStore {
         }
     }
 
+    /// Iterates over the store directory to collect all valid keys currently stored.
     pub fn keys(&self) -> Result<Vec<Id>, StoreError> {
         WalkDir::new(&self.directory)
             .into_iter()
