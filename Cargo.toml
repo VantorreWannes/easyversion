@@ -26,6 +26,7 @@ criterion = "0.8.1"
 [workspace]
 members = ["cli", "gui"]
 
+
 [profile.release]
 lto = true
 codegen-units = 1
