@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::Cursor,
     path::{Path, PathBuf},
 };
 
@@ -44,7 +45,8 @@ impl FileStore {
     pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
         let temp_file = NamedTempFile::new_in(&self.directory)?;
 
-        fs::write(&temp_file, value)?;
+        let compressed_value = zstd::encode_all(Cursor::new(value), 0)?;
+        fs::write(&temp_file, compressed_value)?;
 
         let file_path = self.file_path(key);
         debug!("Writing to store: {:?}", file_path);
@@ -57,7 +59,10 @@ impl FileStore {
         let file_path = self.file_path(key);
         debug!("Reading from store: {:?}", file_path);
         match fs::read(&file_path) {
-            Ok(data) => Ok(Some(data)),
+            Ok(data) => {
+                let decompressed_data = zstd::decode_all(Cursor::new(data))?;
+                Ok(Some(decompressed_data))
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 debug!("File not found in store: {:?}", file_path);
                 Ok(None)
@@ -141,7 +146,9 @@ mod tests {
 
         let file_path = store.file_path(id);
         let read_data = fs::read(file_path).unwrap();
-        assert_eq!(read_data, data);
+
+        let expected_compressed_data = zstd::encode_all(Cursor::new(data), 0).unwrap();
+        assert_eq!(read_data, expected_compressed_data);
     }
 
     #[test]
@@ -151,7 +158,8 @@ mod tests {
         let id = Id { digest: 12345 };
         let data = b"test data";
 
-        fs::write(store.file_path(id), data).unwrap();
+        let compressed_data = zstd::encode_all(Cursor::new(data), 0).unwrap();
+        fs::write(store.file_path(id), compressed_data).unwrap();
 
         let read_data = store.get(id).unwrap().unwrap();
         assert_eq!(read_data, data);
