@@ -50,6 +50,7 @@ fn store_file(store: &FileStore, path: &Path) -> Result<(PathBuf, Id), Operation
     store.set(key, &data)?;
     Ok((path.to_path_buf(), key))
 }
+
 fn manifest(store: &FileStore, directory: &Path) -> Result<Manifest, OperationError> {
     let mut manifest = Manifest {
         files: HashMap::new(),
@@ -93,6 +94,8 @@ fn snapshot(
     Ok(Snapshot { comment, manifest })
 }
 
+/// Retrieves the complete version history for a given workspace directory.
+/// Returns `None` if the directory has no recorded history.
 pub fn history(
     history_store: &FileStore,
     directory: &Path,
@@ -107,6 +110,7 @@ pub fn history(
     }
 }
 
+/// Creates a new snapshot of the given workspace directory and appends it
 pub fn save(
     data_store: &FileStore,
     history_store: &FileStore,
@@ -129,6 +133,7 @@ pub fn save(
     Ok(())
 }
 
+/// Defines the target version to extract during a split operation.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Version {
     Latest,
@@ -166,6 +171,8 @@ fn load(data_store: &FileStore, manifest: &Manifest) -> Result<(), OperationErro
     Ok(())
 }
 
+/// Extracts a specific version of a workspace from the history store and
+/// physically clones its files into the target directory, copying the history alongside it.
 pub fn split(
     data_store: &FileStore,
     history_store: &FileStore,
@@ -214,6 +221,8 @@ pub fn split(
     Ok(())
 }
 
+/// Removes the given directory's history and performs garbage collection on the data store
+/// by deleting any file blobs that are no longer referenced by any known history.
 pub fn clean(
     data_store: &FileStore,
     history_store: &FileStore,
