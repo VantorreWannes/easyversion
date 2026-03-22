@@ -9,7 +9,7 @@ If your hard drive is full of folders named `Project_Final`, `Project_Final_v2`,
 ## Why use EasyVersion?
 
 - **Keep it Clean**: Work in **one** folder. EasyVersion remembers every change you make in the background.
-- **Save Space**: Your files are compressed automatically. Plus, if you have a huge project and only change one file, EasyVersion doesn't duplicate the whole project—it only stores the new file.
+- **Save Space**: Your files are automatically compressed using blazingly fast `zstd` compression. Plus, if you have a huge project and only change one file, EasyVersion doesn't duplicate the whole project—it only stores the new file.
 - **Zero Clutter**: Unlike other tools, EasyVersion doesn't put hidden files inside your project folder. All data is safely stored in your computer's central data folder.
 - **Safe**: It is built to never accidentally overwrite your current work.
 
@@ -22,11 +22,20 @@ Instead of confusing "branches" or "commits", EasyVersion uses two simple concep
 
 _Note: "Split" allows you to go back in time or try a new direction without touching your current working folder. It's the safest way to experiment._
 
+## The Desktop App
+
+If the command line isn't your thing, we provide a sleek, modern desktop app!
+
+1. Open the app and choose a folder.
+2. See exactly what changed in your timeline (`+ added`, `- removed`, `~ changed` files).
+3. Type a quick note and click **Save Version**.
+4. Click **Restore to New Folder** on any old version to safely clone your project at that point in time.
+
 ## Installation
 
-Download the latest binary for your operating system from the [Releases page](https://github.com/wannesvantorre/easyversion/releases).
+Download the latest binary or GUI app for your operating system from the [Releases page](https://github.com/wannesvantorre/easyversion/releases).
 
-## Quick Start Guide
+## Quick Start Guide (CLI)
 
 ### 1. Save your work
 
@@ -46,10 +55,11 @@ ev list
 
 _Output:_
 
-```text
+```
 Saved versions (2):
-  1. Initial Draft
-  2. Fixed the lighting on the main character
+
+1. Initial Draft
+2. Fixed the lighting on the main character
 ```
 
 ### 3. Go back in time (Split)
@@ -66,8 +76,10 @@ Now you have two folders: your current one, and the old one. You can open the ol
 
 ### 4. Free up space
 
-If you delete your project folder, the backups remain in the central storage. To remove them and free up disk space:
+If you're completely done with a project and want to wipe its history to save space, run this inside the folder:
 
 ```bash
 ev clean
 ```
+
+This permanently deletes the history for the current folder and automatically sweeps your computer's central storage to erase any large file blobs that are no longer needed by any of your other projects.
