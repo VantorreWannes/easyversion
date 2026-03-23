@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use log::debug;
+use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 use tempfile::NamedTempFile;
 use thiserror::Error;
@@ -12,24 +12,31 @@ use walkdir::WalkDir;
 
 use crate::model::Id;
 
+/// Represents the various errors that can occur within the storage layer.
 #[derive(Debug, Error)]
 pub enum StoreError {
+    /// An underlying I/O error occurred.
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
+    /// An error occurred while persisting a temporary file.
     #[error(transparent)]
     Persist(#[from] tempfile::PersistError),
 }
 
 /// An atomic, content-addressed file store.
+/// Enforces the Axiom of Contextual Agnosticism by managing data purely by its intrinsic identity,
+/// unaware of its origin or broader meaning.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct FileStore {
+    /// The root directory containing the store's data files.
     directory: PathBuf,
 }
 
 impl FileStore {
     /// Initializes a new `FileStore` at the specified path, creating the directory if it does not exist.
     pub fn new(directory: &Path) -> Result<Self, StoreError> {
+        debug!("Initializing FileStore at {:?}", directory);
         fs::create_dir_all(directory)?;
         Ok(Self {
             directory: directory.to_path_buf(),
@@ -41,22 +48,26 @@ impl FileStore {
         &self.directory
     }
 
+    /// Constructs the physical file path for a given structural identity.
     fn file_path(&self, key: Id) -> PathBuf {
-        self.directory.join(format!("{}.evdata", key.digest))
+        let path = self.directory.join(format!("{}.evdata", key.digest));
+        trace!("Constructed file path {:?} for key {}", path, key.digest);
+        path
     }
 
     /// Writes and compresses data into the store for the given key.
+    /// Employs a temporary file and atomic rename to ensure partial writes are never observable.
     pub fn set(&self, key: Id, value: &[u8]) -> Result<(), StoreError> {
         let file_path = self.file_path(key);
+        debug!("Writing to store: {:?}", file_path);
 
         let mut temp_file = NamedTempFile::new_in(&self.directory)?;
 
         let compressed_value = zstd::encode_all(Cursor::new(value), 0)?;
         temp_file.write_all(&compressed_value)?;
 
-        debug!("Writing to store: {:?}", file_path);
-
         temp_file.persist(&file_path)?;
+        trace!("Successfully persisted data for key {}", key.digest);
 
         Ok(())
     }
@@ -69,6 +80,10 @@ impl FileStore {
         match fs::read(&file_path) {
             Ok(data) => {
                 let decompressed_data = zstd::decode_all(Cursor::new(data))?;
+                trace!(
+                    "Successfully read and decompressed data for key {}",
+                    key.digest
+                );
                 Ok(Some(decompressed_data))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -84,15 +99,22 @@ impl FileStore {
         let file_path = self.file_path(key);
         debug!("Removing from store: {:?}", file_path);
         match fs::remove_file(&file_path) {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Ok(()) => {
+                trace!("Successfully removed file for key {}", key.digest);
+                Ok(())
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                trace!("File for key {} already absent during removal", key.digest);
+                Ok(())
+            }
             Err(e) => Err(e.into()),
         }
     }
 
     /// Iterates over the store directory to collect all valid keys currently stored.
     pub fn keys(&self) -> Result<Vec<Id>, StoreError> {
-        WalkDir::new(&self.directory)
+        debug!("Scanning FileStore directory for keys");
+        let keys: Vec<Id> = WalkDir::new(&self.directory)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
@@ -108,7 +130,10 @@ impl FileStore {
                     .map(|digest| Id { digest })
                     .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e).into())
             })
-            .collect()
+            .collect::<Result<Vec<Id>, StoreError>>()?;
+
+        trace!("Found {} keys in store", keys.len());
+        Ok(keys)
     }
 }
 

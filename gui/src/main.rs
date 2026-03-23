@@ -1,3 +1,5 @@
+/// Graphical user interface for the easyversion system.
+/// Built with iced, providing a visual way to manage creative project versions.
 use std::path::PathBuf;
 
 use directories::ProjectDirs;
@@ -10,6 +12,7 @@ use iced::{
     Alignment, Background, Border, Color, Element, Length, Padding, Task, Theme,
     widget::{Column, Space, button, column, container, row, rule, scrollable, text, text_input},
 };
+use log::{error, info, trace};
 
 use std::sync::OnceLock;
 
@@ -213,9 +216,11 @@ style_btn!(
     ACCENT_BRAND
 );
 
+/// The main entry point for the GUI application.
 pub fn main() -> iced::Result {
     env_logger::init();
-    
+    info!("Starting easyversion GUI");
+
     iced::application(
         EasyVersionApp::new,
         EasyVersionApp::update,
@@ -226,12 +231,14 @@ pub fn main() -> iced::Result {
     .run()
 }
 
+/// Holds the active references to the atomic data structures required for the application.
 #[derive(Debug, Clone)]
 struct Stores {
     data: FileStore,
     history: FileStore,
 }
 
+/// A numerical aggregation of structural deltas between sequential states.
 #[derive(Debug, Clone)]
 struct VersionSummary {
     added: usize,
@@ -239,6 +246,7 @@ struct VersionSummary {
     modified: usize,
 }
 
+/// The precise set of modified identities between two manifest boundaries.
 #[derive(Debug, Clone)]
 struct VersionChanges {
     added: Vec<String>,
@@ -246,12 +254,14 @@ struct VersionChanges {
     modified: Vec<String>,
 }
 
+/// Describes the loading lifecycle of a detailed structural diff view.
 #[derive(Debug, Clone)]
 enum ExpandedDiffState {
     Loading,
     Loaded(VersionChanges),
 }
 
+/// Encapsulates the runtime state of a specific, active project context.
 struct ProjectState {
     path: PathBuf,
     history: easyversion::model::History,
@@ -264,6 +274,7 @@ struct ProjectState {
     processing_action: Option<String>,
 }
 
+/// Represents the high-level functional states of the graphical interface.
 enum AppState {
     Loading,
     Error(String),
@@ -289,6 +300,7 @@ impl AppState {
     }
 }
 
+/// The canonical event vocabulary for state transitions in the interface.
 #[derive(Debug, Clone)]
 enum Message {
     StoresLoaded(Result<(Stores, Vec<PathBuf>), String>),
@@ -312,12 +324,15 @@ enum Message {
     ClearStatus,
 }
 
+/// The root application state container.
 struct EasyVersionApp {
     state: AppState,
 }
 
 impl EasyVersionApp {
+    /// Initializes the application state and kicks off the initial load task.
     fn new() -> (Self, Task<Message>) {
+        info!("Initializing EasyVersionApp");
         (
             Self {
                 state: AppState::Loading,
@@ -326,9 +341,11 @@ impl EasyVersionApp {
         )
     }
 
+    /// Handles incoming messages and updates the application state accordingly.
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::StoresLoaded(Ok((stores, recents))) => {
+                info!("Stores successfully loaded");
                 self.state = AppState::Active {
                     stores,
                     project: None,
@@ -337,20 +354,25 @@ impl EasyVersionApp {
                 Task::none()
             }
             Message::StoresLoaded(Err(e)) => {
+                error!("Failed to load stores: {}", e);
                 self.state = AppState::Error(e);
                 Task::none()
             }
-            Message::PickFolder => Task::perform(
-                async {
-                    rfd::AsyncFileDialog::new()
-                        .set_title("Select your Art/Music/Video Project Folder")
-                        .pick_folder()
-                        .await
-                        .map(|h| h.path().to_path_buf())
-                },
-                Message::FolderSelected,
-            ),
+            Message::PickFolder => {
+                trace!("Opening folder picker dialog");
+                Task::perform(
+                    async {
+                        rfd::AsyncFileDialog::new()
+                            .set_title("Select your Art/Music/Video Project Folder")
+                            .pick_folder()
+                            .await
+                            .map(|h| h.path().to_path_buf())
+                    },
+                    Message::FolderSelected,
+                )
+            }
             Message::FolderSelected(Some(path)) => {
+                info!("Folder selected: {:?}", path);
                 if let Some((stores, project, recent_projects)) = self.state.ctx() {
                     let hist = history(&stores.history, &path)
                         .unwrap_or_default()
@@ -375,8 +397,12 @@ impl EasyVersionApp {
                 }
                 Task::none()
             }
-            Message::FolderSelected(None) => Task::none(),
+            Message::FolderSelected(None) => {
+                trace!("Folder selection cancelled");
+                Task::none()
+            }
             Message::RefreshProject => {
+                trace!("Refreshing current project");
                 if let Some((_, Some(ws), _)) = self.state.ctx() {
                     let path = ws.path.clone();
                     return Task::perform(async move { Some(path) }, Message::FolderSelected);
@@ -396,6 +422,7 @@ impl EasyVersionApp {
                 Task::none()
             }
             Message::ToggleVersionExpansion(index) => {
+                trace!("Toggling expansion for version index: {}", index);
                 if let Some((_, Some(ws), _)) = self.state.ctx() {
                     if let Some((current_index, _)) = &ws.expanded_version {
                         if *current_index == index {
@@ -432,6 +459,7 @@ impl EasyVersionApp {
                 Task::none()
             }
             Message::SaveVersion => {
+                info!("Attempting to save new version");
                 if let Some((stores, Some(ws), _)) = self.state.ctx() {
                     if ws.processing_action.is_some() {
                         return Task::none();
@@ -448,7 +476,6 @@ impl EasyVersionApp {
 
                     return Task::perform(
                         async move {
-                            // FIX: Using the explicit runtime engine
                             runtime()
                                 .spawn_blocking(move || {
                                     save(&data_store, &history_store, &path, comment)
@@ -462,18 +489,22 @@ impl EasyVersionApp {
                 }
                 Task::none()
             }
-            Message::PickExtractFolder(index) => Task::perform(
-                async move {
-                    let target_path = rfd::AsyncFileDialog::new()
-                        .set_title("Select an EMPTY folder to save this copy into")
-                        .pick_folder()
-                        .await
-                        .map(|h| h.path().to_path_buf());
-                    (index, target_path)
-                },
-                |(index, target_path)| Message::ExtractFolderSelected(index, target_path),
-            ),
+            Message::PickExtractFolder(index) => {
+                trace!("Opening extract folder picker for version index: {}", index);
+                Task::perform(
+                    async move {
+                        let target_path = rfd::AsyncFileDialog::new()
+                            .set_title("Select an EMPTY folder to save this copy into")
+                            .pick_folder()
+                            .await
+                            .map(|h| h.path().to_path_buf());
+                        (index, target_path)
+                    },
+                    |(index, target_path)| Message::ExtractFolderSelected(index, target_path),
+                )
+            }
             Message::ExtractFolderSelected(index, Some(target_path)) => {
+                info!("Extract target folder selected: {:?}", target_path);
                 if let Some((stores, Some(ws), _)) = self.state.ctx() {
                     if target_path == ws.path {
                         ws.status_message = Some((
@@ -496,7 +527,6 @@ impl EasyVersionApp {
                     return Task::perform(
                         async move {
                             let extracted_path = target_path.clone();
-                            // FIX: Using the explicit runtime engine
                             runtime()
                                 .spawn_blocking(move || {
                                     split(
@@ -542,7 +572,6 @@ impl EasyVersionApp {
 
                     return Task::perform(
                         async move {
-                            // FIX: Unlink/Clean is also a blocking disk operation, use explicit runtime
                             runtime()
                                 .spawn_blocking(move || clean(&data_store, &history_store, &path))
                                 .await
@@ -635,6 +664,7 @@ impl EasyVersionApp {
         }
     }
 
+    /// Renders the current application state into a structural view hierarchy.
     fn view(&self) -> Element<'_, Message> {
         match &self.state {
             AppState::Loading => container(text("Starting Up...").size(24).color(TEXT_MUTED))
@@ -675,6 +705,7 @@ impl EasyVersionApp {
     }
 }
 
+/// Renders the persistent navigation sidebar.
 fn sidebar<'a>(
     project: &'a Option<ProjectState>,
     recent_projects: &'a [PathBuf],
@@ -753,6 +784,7 @@ fn sidebar<'a>(
         .into()
 }
 
+/// Renders the landing screen displayed when no project boundary is currently active.
 fn welcome_screen<'a>() -> Element<'a, Message> {
     let content: Column<'_, Message, Theme, iced::Renderer> = column![
         text("👋").size(60),
@@ -793,6 +825,7 @@ fn welcome_screen<'a>() -> Element<'a, Message> {
         .into()
 }
 
+/// Renders the core project inspection and operation interface.
 fn main_content<'a>(ws: &'a ProjectState) -> Element<'a, Message> {
     let is_processing = ws.processing_action.is_some();
     let mut main_col: Column<'_, Message, Theme, iced::Renderer> = column![];
@@ -1111,7 +1144,12 @@ fn main_content<'a>(ws: &'a ProjectState) -> Element<'a, Message> {
         .into()
 }
 
+/// Computes a lightweight summary of changes between consecutive historical states.
 fn calculate_summaries(history: &easyversion::model::History) -> Vec<VersionSummary> {
+    trace!(
+        "Calculating summaries for {} snapshots",
+        history.snapshots.len()
+    );
     let mut summaries = Vec::with_capacity(history.snapshots.len());
     for i in 0..history.snapshots.len() {
         let snapshot = &history.snapshots[i];
@@ -1149,10 +1187,12 @@ fn calculate_summaries(history: &easyversion::model::History) -> Vec<VersionSumm
     summaries
 }
 
+/// Asynchronously computes the exact topological delta between two manifest states.
 async fn calculate_single_diff_async(
     prev_manifest: Option<easyversion::model::Manifest>,
     current_manifest: easyversion::model::Manifest,
 ) -> VersionChanges {
+    trace!("Calculating precise diff asynchronously");
     let mut added = Vec::new();
     let mut removed = Vec::new();
     let mut modified = Vec::new();
@@ -1188,7 +1228,9 @@ async fn calculate_single_diff_async(
     }
 }
 
+/// Bootstraps the global storage mechanisms and resolves the user's environment contexts.
 async fn load_stores() -> Result<(Stores, Vec<PathBuf>), String> {
+    info!("Loading storage subsystems and resolving system paths");
     let project_directories = ProjectDirs::from(QUALIFIER, ORGANIZATION, APPLICATION)
         .ok_or_else(|| "No home directory could be found".to_string())?;
     let data_directory = project_directories.data_local_dir();
@@ -1211,15 +1253,20 @@ async fn load_stores() -> Result<(Stores, Vec<PathBuf>), String> {
     Ok((Stores { data, history }, recents))
 }
 
+/// Resolves the file path for the recent projects cache.
 fn get_recent_file_path() -> Option<PathBuf> {
     ProjectDirs::from(QUALIFIER, ORGANIZATION, APPLICATION)
         .map(|dirs| dirs.data_local_dir().join("recent_projects.json"))
 }
 
+/// Persists the list of recently accessed project boundaries.
 fn save_recent_projects(projects: &[PathBuf]) {
+    trace!("Persisting recent projects list");
     if let Some(path) = get_recent_file_path() {
         if let Ok(data) = serde_json::to_string(projects) {
-            let _ = std::fs::write(path, data);
+            if let Err(e) = std::fs::write(&path, data) {
+                error!("Failed to save recent projects to {:?}: {}", path, e);
+            }
         }
     }
 }
