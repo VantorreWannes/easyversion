@@ -214,6 +214,8 @@ style_btn!(
 );
 
 pub fn main() -> iced::Result {
+    env_logger::init();
+    
     iced::application(
         EasyVersionApp::new,
         EasyVersionApp::update,
