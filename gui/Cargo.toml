@@ -7,7 +7,11 @@ edition = "2024"
 iced = "0.14.0"
 easyversion = { version = "0.1.0", path = ".." }
 directories = "6.0.0"
+serde_json = "1.0.145"
+serde = { version = "1.0.228", features = ["derive"] }
 rfd = "0.17.2"
+tokio = { version = "1.50.0", features = ["rt-multi-thread"] }
+rt = "0.19.0"
 
 [[bin]]
 name = "easyversion"

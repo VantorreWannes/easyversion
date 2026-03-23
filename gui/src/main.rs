@@ -276,7 +276,7 @@ impl AppState {
 
 #[derive(Debug, Clone)]
 enum Message {
-    StoresLoaded(Result<Stores, String>),
+    StoresLoaded(Result<(Stores, Vec<PathBuf>), String>),
     PickFolder,
     FolderSelected(Option<PathBuf>),
     #[allow(dead_code)]
@@ -292,7 +292,7 @@ enum Message {
     CancelUnlinkProject,
     ConfirmUnlinkProject,
     SaveComplete(Result<(), String>),
-    ExtractComplete(Result<(), String>),
+    ExtractComplete(Result<PathBuf, String>),
     CleanComplete(Result<(), String>),
     ClearStatus,
 }
@@ -313,11 +313,11 @@ impl EasyVersionApp {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::StoresLoaded(Ok(stores)) => {
+            Message::StoresLoaded(Ok((stores, recents))) => {
                 self.state = AppState::Active {
                     stores,
                     project: None,
-                    recent_projects: Vec::new(),
+                    recent_projects: recents,
                 };
                 Task::none()
             }
@@ -341,8 +341,10 @@ impl EasyVersionApp {
                         .unwrap_or_default()
                         .unwrap_or_default();
                     let summaries = calculate_summaries(&hist);
+
                     recent_projects.retain(|p| p != &path);
                     recent_projects.insert(0, path.clone());
+                    save_recent_projects(recent_projects);
 
                     *project = Some(ProjectState {
                         path,
@@ -394,12 +396,10 @@ impl EasyVersionApp {
                     } else {
                         None
                     };
-                    let base_path = ws.path.clone();
 
                     return Task::perform(
                         async move {
-                            calculate_single_diff_async(base_path, prev_manifest, current_manifest)
-                                .await
+                            calculate_single_diff_async(prev_manifest, current_manifest).await
                         },
                         move |changes| Message::DiffLoaded(index, changes),
                     );
@@ -433,8 +433,12 @@ impl EasyVersionApp {
 
                     return Task::perform(
                         async move {
-                            save(&data_store, &history_store, &path, comment)
-                                .map_err(|e| e.to_string())
+                            tokio::task::spawn_blocking(move || {
+                                save(&data_store, &history_store, &path, comment)
+                            })
+                            .await
+                            .unwrap()
+                            .map_err(|e| e.to_string())
                         },
                         Message::SaveComplete,
                     );
@@ -454,6 +458,14 @@ impl EasyVersionApp {
             ),
             Message::ExtractFolderSelected(index, Some(target_path)) => {
                 if let Some((stores, Some(ws), _)) = self.state.ctx() {
+                    if target_path == ws.path {
+                        ws.status_message = Some((
+                            "Cannot extract into the active project folder.".to_string(),
+                            true,
+                        ));
+                        return Task::none();
+                    }
+
                     if ws.processing_action.is_some() {
                         return Task::none();
                     }
@@ -466,13 +478,19 @@ impl EasyVersionApp {
 
                     return Task::perform(
                         async move {
-                            split(
-                                &data_store,
-                                &history_store,
-                                &source_path,
-                                &target_path,
-                                Version::Specific(index),
-                            )
+                            let extracted_path = target_path.clone();
+                            tokio::task::spawn_blocking(move || {
+                                split(
+                                    &data_store,
+                                    &history_store,
+                                    &source_path,
+                                    &target_path,
+                                    Version::Specific(index),
+                                )
+                            })
+                            .await
+                            .unwrap()
+                            .map(|_| extracted_path)
                             .map_err(|e| e.to_string())
                         },
                         Message::ExtractComplete,
@@ -538,14 +556,22 @@ impl EasyVersionApp {
                 Task::none()
             }
             Message::ExtractComplete(result) => {
-                if let Some((_, Some(ws), _)) = self.state.ctx() {
+                if let Some((stores, Some(ws), _)) = self.state.ctx() {
                     ws.processing_action = None;
                     match result {
-                        Ok(()) => {
+                        Ok(target_path) => {
                             ws.status_message = Some((
-                                "Success! Copy extracted safely to the new folder.".to_string(),
+                                "Success! Copy extracted safely to the folder.".to_string(),
                                 false,
                             ));
+
+                            if target_path == ws.path {
+                                if let Ok(Some(hist)) = history(&stores.history, &ws.path) {
+                                    ws.changes_summary = calculate_summaries(&hist);
+                                    ws.history = hist;
+                                    ws.expanded_version = None;
+                                }
+                            }
                         }
                         Err(e) => {
                             ws.status_message =
@@ -564,6 +590,7 @@ impl EasyVersionApp {
                             Ok(()) => {
                                 let removed_path = ws.path.clone();
                                 recent_projects.retain(|p| p != &removed_path);
+                                save_recent_projects(recent_projects);
                                 *project = None;
                             }
                             Err(e) => {
@@ -1099,7 +1126,6 @@ fn calculate_summaries(history: &easyversion::model::History) -> Vec<VersionSumm
 }
 
 async fn calculate_single_diff_async(
-    base_path: PathBuf,
     prev_manifest: Option<easyversion::model::Manifest>,
     current_manifest: easyversion::model::Manifest,
 ) -> VersionChanges {
@@ -1107,12 +1133,7 @@ async fn calculate_single_diff_async(
     let mut removed = Vec::new();
     let mut modified = Vec::new();
 
-    let format_path = |p: &PathBuf| -> String {
-        p.strip_prefix(&base_path)
-            .unwrap_or(p)
-            .to_string_lossy()
-            .to_string()
-    };
+    let format_path = |p: &PathBuf| -> String { p.to_string_lossy().to_string() };
 
     if let Some(prev) = prev_manifest {
         for (path, id) in &current_manifest.files {
@@ -1143,13 +1164,38 @@ async fn calculate_single_diff_async(
     }
 }
 
-async fn load_stores() -> Result<Stores, String> {
+async fn load_stores() -> Result<(Stores, Vec<PathBuf>), String> {
     let project_directories = ProjectDirs::from(QUALIFIER, ORGANIZATION, APPLICATION)
         .ok_or_else(|| "No home directory could be found".to_string())?;
     let data_directory = project_directories.data_local_dir();
+
+    std::fs::create_dir_all(data_directory.join("data"))
+        .map_err(|e| format!("Failed to create data dir: {}", e))?;
+    std::fs::create_dir_all(data_directory.join("history"))
+        .map_err(|e| format!("Failed to create history dir: {}", e))?;
+
     let data = FileStore::new(&data_directory.join("data"))
         .map_err(|e| format!("Failed to load data store: {}", e))?;
     let history = FileStore::new(&data_directory.join("history"))
         .map_err(|e| format!("Failed to load history store: {}", e))?;
-    Ok(Stores { data, history })
+
+    let recents = get_recent_file_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|data| serde_json::from_str(&data).ok())
+        .unwrap_or_default();
+
+    Ok((Stores { data, history }, recents))
+}
+
+fn get_recent_file_path() -> Option<PathBuf> {
+    ProjectDirs::from(QUALIFIER, ORGANIZATION, APPLICATION)
+        .map(|dirs| dirs.data_local_dir().join("recent_projects.json"))
+}
+
+fn save_recent_projects(projects: &[PathBuf]) {
+    if let Some(path) = get_recent_file_path() {
+        if let Ok(data) = serde_json::to_string(projects) {
+            let _ = std::fs::write(path, data);
+        }
+    }
 }
