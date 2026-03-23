@@ -11,6 +11,19 @@ use iced::{
     widget::{Column, Space, button, column, container, row, rule, scrollable, text, text_input},
 };
 
+use std::sync::OnceLock;
+
+static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+fn runtime() -> &'static tokio::runtime::Runtime {
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to initialize Tokio background runtime")
+    })
+}
+
 const BG_SIDEBAR: Color = Color::from_rgb(0.12, 0.12, 0.13);
 const BG_MAIN: Color = Color::from_rgb(0.16, 0.16, 0.18);
 const BG_CARD: Color = Color::from_rgb(0.20, 0.20, 0.22);
@@ -433,12 +446,14 @@ impl EasyVersionApp {
 
                     return Task::perform(
                         async move {
-                            tokio::task::spawn_blocking(move || {
-                                save(&data_store, &history_store, &path, comment)
-                            })
-                            .await
-                            .unwrap()
-                            .map_err(|e| e.to_string())
+                            // FIX: Using the explicit runtime engine
+                            runtime()
+                                .spawn_blocking(move || {
+                                    save(&data_store, &history_store, &path, comment)
+                                })
+                                .await
+                                .unwrap()
+                                .map_err(|e| e.to_string())
                         },
                         Message::SaveComplete,
                     );
@@ -479,19 +494,21 @@ impl EasyVersionApp {
                     return Task::perform(
                         async move {
                             let extracted_path = target_path.clone();
-                            tokio::task::spawn_blocking(move || {
-                                split(
-                                    &data_store,
-                                    &history_store,
-                                    &source_path,
-                                    &target_path,
-                                    Version::Specific(index),
-                                )
-                            })
-                            .await
-                            .unwrap()
-                            .map(|_| extracted_path)
-                            .map_err(|e| e.to_string())
+                            // FIX: Using the explicit runtime engine
+                            runtime()
+                                .spawn_blocking(move || {
+                                    split(
+                                        &data_store,
+                                        &history_store,
+                                        &source_path,
+                                        &target_path,
+                                        Version::Specific(index),
+                                    )
+                                })
+                                .await
+                                .unwrap()
+                                .map(|_| extracted_path)
+                                .map_err(|e| e.to_string())
                         },
                         Message::ExtractComplete,
                     );
@@ -523,7 +540,12 @@ impl EasyVersionApp {
 
                     return Task::perform(
                         async move {
-                            clean(&data_store, &history_store, &path).map_err(|e| e.to_string())
+                            // FIX: Unlink/Clean is also a blocking disk operation, use explicit runtime
+                            runtime()
+                                .spawn_blocking(move || clean(&data_store, &history_store, &path))
+                                .await
+                                .unwrap()
+                                .map_err(|e| e.to_string())
                         },
                         Message::CleanComplete,
                     );
